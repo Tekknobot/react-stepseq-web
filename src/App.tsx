@@ -202,6 +202,18 @@ export default function App() {
     setPianoPage((p) => (p - 1 + 2) % 2)
   }
 
+  function randomizeSynth(density = 0.25) {
+  setState(prev => {
+    const next = { ...prev, synthRoll: [...prev.synthRoll] }
+    for (let i = 0; i < STEPS; i++) {
+      next.synthRoll[i] = Math.random() < density
+        ? Math.floor(Math.random() * ROLL_NOTES.length)
+        : null
+    }
+    return next
+  })
+}
+
   // ---- Synth tone controls (UI state) ----
   const [wave, setWave] = useState<'sine'|'triangle'|'square'|'sawtooth'>('sawtooth')
   const [cutoff, setCutoff] = useState(1200)      // Hz
@@ -474,52 +486,65 @@ export default function App() {
         </div>
       </div>
 
-      {/* Piano Roll grid, paged 8 steps at a time */}
-      <div style={{marginBottom:8, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-        <button className="button secondary small" onClick={prevPianoPage}>◀ Prev 8</button>
-        <div className="small">Steps {pianoPage*8+1}–{pianoPage*8+8}</div>
-        <button className="button secondary small" onClick={nextPianoPage}>Next 8 ▶</button>
-      </div>
+      {/* Piano Roll — track-style header + paged grid */}
+      <div className="panel" style={{marginTop:12, marginBottom:12}}>
+        <div className="trackHead">
+          <div className="row">
+            <div style={{width:12,height:12,borderRadius:6, background:'#a78bfa', marginRight:8}}/>
+            <strong>Synth</strong>
+            <span className="small" style={{marginLeft:8, color:'var(--sub)'}}>
+              Steps {pianoPage*8+1}–{pianoPage*8+8}
+            </span>
+          </div>
+          <div className="row" style={{gap:8}}>
+            <button className="button secondary small" onClick={()=>randomizeSynth(0.25)}>Randomize</button>
+            <button className="button small" onClick={()=>{
+              setState(prev => ({ ...prev, synthRoll: Array(STEPS).fill(null)}))
+            }}>Clear</button>
+            <button className="button secondary small" onClick={prevPianoPage}>◀ Prev 8</button>
+            <button className="button secondary small" onClick={nextPianoPage}>Next 8 ▶</button>
+          </div>
+        </div>
 
-      {/* wrap the roll grid in a .panel */}
-      <div className="panel" style={{padding:'12px', marginBottom:12}}>
-        <div style={{
-          display:'grid',
-          gridTemplateColumns:`40px repeat(8, var(--cell, 44px))`,
-          gap:'var(--gap, 8px)'
-        }}>
-          {/* Column labels */}
-          <div />
-          {Array.from({length:8}).map((_,i)=>
-            <div key={'colLabel'+i} className="label small" style={{textAlign:'center'}}>
-              {pianoPage*8 + i + 1}
-            </div>
-          )}
+        <div style={{padding:'12px 0'}}>
+          <div style={{
+            display:'grid',
+            gridTemplateColumns:`40px repeat(8, var(--cell, 44px))`,
+            gap:'var(--gap, 8px)'
+          }}>
+            {/* Column labels */}
+            <div />
+            {Array.from({length:8}).map((_,i)=>
+              <div key={'colLabel'+i} className="label small" style={{textAlign:'center'}}>
+                {pianoPage*8 + i + 1}
+              </div>
+            )}
 
-          {ROLL_NOTES.map((note, rowIdx) => (
-            <React.Fragment key={note}>
-              <div className="label small" style={{textAlign:'right', paddingRight:6}}>{note}</div>
-              {Array.from({length:8}).map((_, colIdx) => {
-                const stepIndex = pianoPage*8 + colIdx
-                const on = synthRoll[stepIndex] === rowIdx
-                const playing = isPlaying && stepIndex === step
-                const quarter = stepIndex % 4 === 0
-                return (
-                  <button
-                    key={note+colIdx}
-                    className={'step' + (on?' on':'') + (quarter?' quarter':'') + (playing?' playing':'')}
-                    onClick={()=>toggleRoll(rowIdx, stepIndex)}
-                    title={`${note} @ step ${stepIndex+1}`}
-                    style={{
-                      width:'var(--cell, 44px)',
-                      height:'var(--cell, 44px)',
-                      ...(on?{background:'#a78bfa',color:'#0b1012'}:null)
-                    }}
-                  />
-                )
-              })}
-            </React.Fragment>
-          ))}
+            {ROLL_NOTES.map((note, rowIdx) => (
+              <React.Fragment key={note}>
+                <div className="label small" style={{textAlign:'right', paddingRight:6}}>{note}</div>
+                {Array.from({length:8}).map((_, colIdx) => {
+                  const stepIndex = pianoPage*8 + colIdx
+                  const on = synthRoll[stepIndex] === rowIdx
+                  const playing = isPlaying && stepIndex === step
+                  const quarter = stepIndex % 4 === 0
+                  return (
+                    <button
+                      key={note+colIdx}
+                      className={'step' + (on?' on':'') + (quarter?' quarter':'') + (playing?' playing':'')}
+                      onClick={()=>toggleRoll(rowIdx, stepIndex)}
+                      title={`${note} @ step ${stepIndex+1}`}
+                      style={{
+                        width:'var(--cell, 44px)',
+                        height:'var(--cell, 44px)',
+                        ...(on?{background:'#a78bfa',color:'#0b1012'}:null)
+                      }}
+                    />
+                  )
+                })}
+              </React.Fragment>
+            ))}
+          </div>
         </div>
       </div>
 
