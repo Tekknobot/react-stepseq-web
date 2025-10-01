@@ -574,14 +574,22 @@ export default function App() {
 
   // Global clear/random
   function clearAll() { setState(makeEmpty()) }
+
   function randomizeAll() {
     const densities: Record<TrackId, number> = { kick: 0.35, snare: 0.25, hihat: 0.5, perc: 0.2 }
-    setState(prev => {
+
+    // 1) Randomize drums
+    setState(() => {
       const next = makeEmpty()
-      for (const t of TRACKS) next.drums[t.id] = [...Array(STEPS)].map(() => Math.random() < densities[t.id])
-      next.synthRoll = Array.from({length:STEPS}, () => (Math.random()<0.25 ? Math.floor(Math.random()*ROLL_NOTES.length) : null))
+      for (const t of TRACKS) {
+        next.drums[t.id] = Array.from({ length: STEPS }, () => Math.random() < densities[t.id])
+      }
+      // leave synthRoll alone here; we'll use the smarter generator below
       return next
     })
+
+    // 2) Randomize synth with ~75% density using the smarter musical generator
+    randomizeSynth(0.75)
   }
 
   // Piano roll toggle (monophonic per step)
