@@ -432,8 +432,9 @@ export default function App() {
         </div>
       </div>
 
-      {/* Drum track viewer — 2 rows × 8 cols (16 steps) */}
+      {/* Drum track viewer — header on one line, buttons on their own line */}
       <div style={{marginTop:12}}>
+        {/* page (prev/next track) sits above the panel to match your layout */}
         <div className="row" style={{justifyContent:'space-between', marginBottom:8}}>
           <button className="button secondary" onClick={prevTrack}>◀ Prev</button>
           <div className="small">
@@ -442,16 +443,29 @@ export default function App() {
           <button className="button secondary" onClick={nextTrack}>Next ▶</button>
         </div>
 
-        <div className="track panel">
+        <div className="panel">
+          {/* header only */}
           <div className="trackHead">
             <div className="row">
               <div style={{width:12,height:12,borderRadius:6, background:TRACKS[currentTrackIndex].color, marginRight:8}}/>
               <strong>{TRACKS[currentTrackIndex].name}</strong>
             </div>
-            <div className="row">
-              <button className="button secondary small" onClick={()=>randomizeDrum(TRACKS[currentTrackIndex].id,0.3)}>Randomize</button>
-              <button className="button small" onClick={()=>clearDrum(TRACKS[currentTrackIndex].id)}>Clear</button>
-            </div>
+          </div>
+
+          {/* actions on their own line */}
+          <div className="row" style={{gap:8, margin:'6px 0 10px'}}>
+            <button
+              className="button secondary small"
+              onClick={()=>randomizeDrum(TRACKS[currentTrackIndex].id, 0.3)}
+            >
+              Randomize
+            </button>
+            <button
+              className="button small"
+              onClick={()=>clearDrum(TRACKS[currentTrackIndex].id)}
+            >
+              Clear
+            </button>
           </div>
 
           {/* exact 2 × 8 grid */}
@@ -461,6 +475,7 @@ export default function App() {
               gridTemplateColumns: 'repeat(8, var(--cell, 44px))',
               gridTemplateRows: 'repeat(2, var(--cell, 44px))',
               gap: 'var(--gap, 8px)',
+              padding: '12px 0'
             }}
           >
             {Array.from({ length: 16 }).map((_, idx) => {
@@ -473,7 +488,6 @@ export default function App() {
                   className={'step' + (on ? ' on' : '') + (quarter ? ' quarter' : '') + (playing ? ' playing' : '')}
                   onClick={() => toggleDrum(TRACKS[currentTrackIndex].id, idx)}
                   title={`Step ${idx + 1}`}
-                  // hard fallback sizes so it never stretches full width
                   style={{
                     width: 'var(--cell, 44px)',
                     height: 'var(--cell, 44px)',
@@ -486,8 +500,9 @@ export default function App() {
         </div>
       </div>
 
-      {/* Piano Roll — track-style header + paged grid */}
+      {/* Piano Roll — header on one line, buttons on their own line */}
       <div className="panel" style={{marginTop:12, marginBottom:12}}>
+        {/* header only */}
         <div className="trackHead">
           <div className="row">
             <div style={{width:12,height:12,borderRadius:6, background:'#a78bfa', marginRight:8}}/>
@@ -496,23 +511,26 @@ export default function App() {
               Steps {pianoPage*8+1}–{pianoPage*8+8}
             </span>
           </div>
-          <div className="row" style={{gap:8}}>
-            <button className="button secondary small" onClick={()=>randomizeSynth(0.25)}>Randomize</button>
-            <button className="button small" onClick={()=>{
-              setState(prev => ({ ...prev, synthRoll: Array(STEPS).fill(null)}))
-            }}>Clear</button>
-            <button className="button secondary small" onClick={prevPianoPage}>◀ Prev 8</button>
-            <button className="button secondary small" onClick={nextPianoPage}>Next 8 ▶</button>
-          </div>
         </div>
 
+        {/* actions on their own line */}
+        <div className="row" style={{gap:8, margin:'6px 0 10px'}}>
+          <button className="button secondary small" onClick={()=>randomizeSynth(0.25)}>Randomize</button>
+          <button className="button small" onClick={()=>{
+            setState(prev => ({ ...prev, synthRoll: Array(STEPS).fill(null)}))
+          }}>Clear</button>
+          <button className="button secondary small" onClick={prevPianoPage}>◀ Prev 8</button>
+          <button className="button secondary small" onClick={nextPianoPage}>Next 8 ▶</button>
+        </div>
+
+        {/* paged grid */}
         <div style={{padding:'12px 0'}}>
           <div style={{
             display:'grid',
             gridTemplateColumns:`40px repeat(8, var(--cell, 44px))`,
             gap:'var(--gap, 8px)'
           }}>
-            {/* Column labels */}
+            {/* column labels */}
             <div />
             {Array.from({length:8}).map((_,i)=>
               <div key={'colLabel'+i} className="label small" style={{textAlign:'center'}}>
