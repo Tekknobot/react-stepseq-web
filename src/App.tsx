@@ -507,7 +507,7 @@ export default function App() {
     seqRef.current = seq
 
     return () => { seq.dispose(); seqRef.current = null }
-  }, [drums, synthRoll, accentEvery])
+  }, [drums, synthRoll, accentEvery, samplerRoll, markers, playerReady])
 
   // Auto-advance the piano roll page to follow the playhead
   useEffect(() => {
