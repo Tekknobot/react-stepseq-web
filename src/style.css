@@ -116,3 +116,10 @@ select { background: #1f2937; color: white; border-radius: 8px; padding: 6px 8px
   .knobWrap { width: 86px; }
 }
 
+/* extra small nav buttons */
+.button.xs{
+  padding: 6px 8px;      /* was ~10px 14px */
+  border-radius: 4px;    /* a bit tighter */
+  font-size: 11px;       /* slightly smaller label */
+  line-height: 1.1;
+}

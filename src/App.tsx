@@ -436,11 +436,11 @@ export default function App() {
       <div style={{marginTop:12}}>
         {/* page (prev/next track) sits above the panel to match your layout */}
         <div className="row" style={{justifyContent:'space-between', marginBottom:8}}>
-          <button className="button secondary" onClick={prevTrack}>◀ Prev</button>
+          <button className="button secondary xs" onClick={prevTrack}>◀ Prev</button>
           <div className="small">
             {TRACKS[currentTrackIndex].name} ({currentTrackIndex+1}/{TRACKS.length})
           </div>
-          <button className="button secondary" onClick={nextTrack}>Next ▶</button>
+          <button className="button secondary xs" onClick={nextTrack}>Next ▶</button>
         </div>
 
         <div className="panel">
@@ -454,16 +454,12 @@ export default function App() {
 
           {/* actions on their own line */}
           <div className="row" style={{gap:8, margin:'6px 0 10px'}}>
-            <button
-              className="button secondary small"
-              onClick={()=>randomizeDrum(TRACKS[currentTrackIndex].id, 0.3)}
-            >
+            <button className="button secondary xs"
+              onClick={()=>randomizeDrum(TRACKS[currentTrackIndex].id,0.3)}>
               Randomize
             </button>
-            <button
-              className="button small"
-              onClick={()=>clearDrum(TRACKS[currentTrackIndex].id)}
-            >
+            <button className="button xs"
+              onClick={()=>clearDrum(TRACKS[currentTrackIndex].id)}>
               Clear
             </button>
           </div>
@@ -515,12 +511,12 @@ export default function App() {
 
         {/* actions on their own line */}
         <div className="row" style={{gap:8, margin:'6px 0 10px'}}>
-          <button className="button secondary small" onClick={()=>randomizeSynth(0.25)}>Randomize</button>
-          <button className="button small" onClick={()=>{
+          <button className="button secondary xs" onClick={()=>randomizeSynth(0.25)}>Randomize</button>
+          <button className="button xs" onClick={()=>{
             setState(prev => ({ ...prev, synthRoll: Array(STEPS).fill(null)}))
           }}>Clear</button>
-          <button className="button secondary small" onClick={prevPianoPage}>◀ Prev 8</button>
-          <button className="button secondary small" onClick={nextPianoPage}>Next 8 ▶</button>
+          <button className="button secondary xs" onClick={prevPianoPage}>◀ Prev 8</button>
+          <button className="button secondary xs" onClick={nextPianoPage}>Next 8 ▶</button>
         </div>
 
         {/* paged grid */}
