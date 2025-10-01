@@ -202,17 +202,207 @@ export default function App() {
     setPianoPage((p) => (p - 1 + 2) % 2)
   }
 
-  function randomizeSynth(density = 0.25) {
-  setState(prev => {
-    const next = { ...prev, synthRoll: [...prev.synthRoll] }
-    for (let i = 0; i < STEPS; i++) {
-      next.synthRoll[i] = Math.random() < density
-        ? Math.floor(Math.random() * ROLL_NOTES.length)
-        : null
+  // ---- Helpers for musical randomization ----
+  const SCALES: Record<string, number[]> = {
+    // pitch classes relative to root (0=C, 2=D, 3=Eb, 5=F, etc)
+    major:       [0, 2, 4, 5, 7, 9, 11],
+    minor:       [0, 2, 3, 5, 7, 8, 10],
+    pentatonic:  [0, 3, 5, 7, 10],         // minor pentatonic
+    blues:       [0, 3, 5, 6, 7, 10],      // blues hexatonic
+  };
+
+  // Parse "C#3" -> midi + pitch class
+  function noteToMidi(n: string): { midi: number; pc: number } {
+    const m = n.match(/^([A-Ga-g])([#b]?)(-?\d+)$/);
+    if (!m) return { midi: 60, pc: 0 };
+    const L = m[1].toUpperCase();
+    const acc = m[2];
+    const oct = parseInt(m[3], 10);
+    const base: Record<string, number> = {C:0, D:2, E:4, F:5, G:7, A:9, B:11};
+    let semis = base[L] ?? 0;
+    if (acc === '#') semis += 1;
+    if (acc === 'b') semis -= 1;
+    const midi = semis + (oct + 1) * 12; // MIDI C-1 = 0
+    return { midi, pc: ((semis % 12) + 12) % 12 };
+  }
+
+  // Euclidean rhythm E(k, n)
+  function euclid(k: number, n: number): boolean[] {
+    // guard
+    k = Math.max(0, Math.min(n, Math.round(k)));
+    if (k === 0) return Array(n).fill(false);
+    if (k === n) return Array(n).fill(true);
+    const pattern: boolean[] = [];
+    let bucket = 0;
+    for (let i = 0; i < n; i++) {
+      bucket += k;
+      if (bucket >= n) { bucket -= n; pattern.push(true); }
+      else pattern.push(false);
     }
-    return next
-  })
-}
+    // rotate randomly a bit
+    const rot = Math.floor(Math.random() * n);
+    return pattern.map((_, i) => pattern[(i + rot) % n]);
+  }
+
+  // pick next note index near previous with a small jump chance
+  function pickNextIndex(
+    allowed: number[],          // row indices allowed by the scale
+    prevIdx: number | null,     // previous row index (or null)
+    jumpProb = 0.15
+  ): number {
+    if (allowed.length === 0) return 0;
+    if (prevIdx == null) {
+      // center bias
+      const center = Math.floor(allowed.length / 2);
+      const weights = allowed.map((_, i) => {
+        const d = Math.abs(i - center);
+        return Math.exp(-0.5 * d * d);
+      });
+      const sum = weights.reduce((a, b) => a + b, 0);
+      let r = Math.random() * sum;
+      for (let i = 0; i < allowed.length; i++) {
+        r -= weights[i];
+        if (r <= 0) return allowed[i];
+      }
+      return allowed[center];
+    }
+    // near prev: pick within +/- 1..2 steps along allowed
+    const iPrev = allowed.indexOf(prevIdx);
+    if (iPrev < 0 || Math.random() < jumpProb) {
+      // jump: ±3..5 within bounds
+      const hop = (Math.random() < 0.5 ? -1 : 1) * (3 + Math.floor(Math.random() * 3));
+      const target = allowed.reduce((best, idx) =>
+        Math.abs(idx - prevIdx) < Math.abs(best - prevIdx) ? idx : best
+      , allowed[0]);
+      const alt = prevIdx + hop;
+      const clamped = allowed.reduce((best, idx) =>
+        Math.abs(idx - alt) < Math.abs(best - alt) ? idx : best
+      , target);
+      return clamped;
+    } else {
+      const candidates: number[] = [];
+      for (let off of [-2,-1,1,2]) {
+        const pos = iPrev + off;
+        if (pos >= 0 && pos < allowed.length) candidates.push(allowed[pos]);
+      }
+      if (candidates.length === 0) return allowed[iPrev];
+      return candidates[Math.floor(Math.random() * candidates.length)];
+    }
+  }
+
+  // Better musical randomizer with density OR exact hits
+  // Usage:
+  //   randomizeSynth(0.6)              // ~60% density (≈10 hits)
+  //   randomizeSynth(12)               // exactly 12 hits
+  //   randomizeSynth({ hits: 16 })     // exactly 16 hits
+  //   randomizeSynth({ scale:'blues', density:0.35, root:'A', jumpProb:0.2 })
+  function randomizeSynth(
+    arg?: number | {
+      scale?: 'major'|'minor'|'pentatonic'|'blues';
+      density?: number;   // 0..1
+      hits?: number;      // 1..16
+      root?: 'C'|'C#'|'Db'|'D'|'D#'|'Eb'|'E'|'F'|'F#'|'Gb'|'G'|'G#'|'Ab'|'A'|'A#'|'Bb'|'B';
+      jumpProb?: number;
+    }
+  ){
+    const opts = (typeof arg === 'number') ? (
+      // if number >1 treat as exact hits; else density
+      (arg > 1 ? { hits: Math.round(arg) } : { density: arg })
+    ) : (arg || {});
+
+    const scaleName = opts.scale ?? 'minor';
+    const rootName  = (opts.root || 'C').replace('♯','#').replace('♭','b') as any;
+    const jumpProb  = Math.max(0, Math.min(1, opts.jumpProb ?? 0.15));
+
+    // compute hits from hits|density (default ~0.42 ≈ 7 notes)
+    const density   = Math.max(0, Math.min(1, opts.density ?? 0.42));
+    const hits      = Math.max(0, Math.min(STEPS,
+                        opts.hits != null ? Math.round(opts.hits)
+                        : Math.round(density * STEPS)));
+
+    // ---- scale + allowed rows ----
+    const SCALES: Record<string, number[]> = {
+      major:[0,2,4,5,7,9,11], minor:[0,2,3,5,7,8,10],
+      pentatonic:[0,3,5,7,10], blues:[0,3,5,6,7,10]
+    };
+    const rootPcMap: Record<string, number> = {
+      C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11
+    };
+    const rootPc = rootPcMap[rootName] ?? 0;
+    const pcs = SCALES[scaleName] || SCALES.minor;
+    const allowedPc = new Set(pcs.map(v => (v + rootPc) % 12));
+
+    const rowPc: number[] = [];
+    const allowedRows: number[] = [];
+    function noteToMidi(n: string){ const m=n.match(/^([A-Ga-g])([#b]?)(-?\d+)$/);
+      if(!m) return {pc:0}; const L=m[1].toUpperCase(), acc=m[2];
+      const base: Record<string,number>={C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+      let s=base[L]??0; if(acc==='#') s++; if(acc==='b') s--;
+      return { pc: ((s%12)+12)%12 };
+    }
+    for (let r=0;r<ROLL_NOTES.length;r++){
+      const { pc } = noteToMidi(ROLL_NOTES[r]);
+      rowPc[r]=pc; if (allowedPc.has(pc)) allowedRows.push(r);
+    }
+
+    // Euclidean rhythm E(hits, 16)
+    const mask:boolean[] = (()=>{ const n=STEPS,k=Math.max(0,Math.min(n,hits));
+      const out:boolean[]=[]; let bucket=0;
+      for(let i=0;i<n;i++){ bucket+=k; if(bucket>=n){bucket-=n; out.push(true);} else out.push(false); }
+      const rot = Math.floor(Math.random()*n); return out.map((_,i)=>out[(i+rot)%n]); })();
+
+    // stepwise melody chooser
+    function pickNextIndex(allowed:number[], prev:number|null, jump=0.15){
+      if(allowed.length===0) return 0;
+      if(prev==null){ const center=Math.floor(allowed.length/2);
+        const weights=allowed.map((_,i)=>Math.exp(-0.5*Math.pow(i-center,2)));
+        let sum=weights.reduce((a,b)=>a+b,0), r=Math.random()*sum;
+        for(let i=0;i<allowed.length;i++){ r-=weights[i]; if(r<=0) return allowed[i]; }
+        return allowed[center];
+      }
+      const iPrev=allowed.indexOf(prev);
+      if(iPrev<0 || Math.random()<jump){
+        const hop=(Math.random()<0.5?-1:1)*(3+Math.floor(Math.random()*3));
+        const target=prev+hop;
+        return allowed.reduce((best,idx)=>Math.abs(idx-target)<Math.abs(best-target)?idx:best, allowed[0]);
+      }
+      const candidates:number[]=[];
+      for(const off of [-2,-1,1,2]){ const p=iPrev+off; if(p>=0 && p<allowed.length) candidates.push(allowed[p]); }
+      return candidates.length? candidates[Math.floor(Math.random()*candidates.length)] : allowed[iPrev];
+    }
+
+    const line:(number|null)[] = Array(STEPS).fill(null);
+    let prev:number|null = null;
+
+    for(let i=0;i<STEPS;i++){
+      if(!mask[i]) continue;
+      const idx = pickNextIndex(allowedRows, prev, jumpProb);
+      // avoid long holds
+      if(prev!==null && idx===prev && Math.random()<0.6){
+        const pos=allowedRows.indexOf(idx);
+        const alt=pos+(Math.random()<0.5?-1:1);
+        line[i]=(alt>=0 && alt<allowedRows.length)? allowedRows[alt] : idx;
+      } else {
+        line[i]=idx;
+      }
+      prev=line[i]!;
+    }
+
+    // optional gentle resolution to root near the end
+    const rootRows = ROLL_NOTES.map((_,r)=>r).filter(r=>rowPc[r]===rootPc);
+    if(rootRows.length){
+      for(let i=STEPS-2;i<STEPS;i++){
+        if(mask[i] && Math.random()<0.4){
+          const cur = line[i] ?? allowedRows[Math.floor(allowedRows.length/2)];
+          let best=rootRows[0]; for(const rr of rootRows) if(Math.abs(rr-(cur??rr))<Math.abs(best-(cur??rr))) best=rr;
+          line[i]=best;
+        }
+      }
+    }
+
+    setState(prev => ({ ...prev, synthRoll: line }));
+  }
+
 
   // ---- Synth tone controls (UI state) ----
   const [wave, setWave] = useState<'sine'|'triangle'|'square'|'sawtooth'>('sawtooth')
@@ -542,7 +732,7 @@ export default function App() {
 
         {/* actions on their own line */}
         <div className="row" style={{gap:8, margin:'6px 0 10px'}}>
-          <button className="button secondary xs" onClick={()=>randomizeSynth(0.25)}>Randomize</button>
+          <button className="button secondary xs" onClick={()=>randomizeSynth(0.75)}>Randomize</button>
           <button className="button xs" onClick={()=>{
             setState(prev => ({ ...prev, synthRoll: Array(STEPS).fill(null)}))
           }}>Clear</button>
