@@ -194,12 +194,15 @@ export default function App() {
   }
 
   const [pianoPage, setPianoPage] = useState(0) // 0 = steps 1–8, 1 = steps 9–16
+  const [followRoll, setFollowRoll] = useState(true) // auto-follow the playhead
 
   function nextPianoPage() {
-    setPianoPage((p) => (p + 1) % 2)
+    setFollowRoll(false);
+    setPianoPage((p) => (p + 1) % 2);
   }
   function prevPianoPage() {
-    setPianoPage((p) => (p - 1 + 2) % 2)
+    setFollowRoll(false);
+    setPianoPage((p) => (p - 1 + 2) % 2);
   }
 
   // ---- Helpers for musical randomization ----
@@ -551,6 +554,14 @@ export default function App() {
     return () => { seq.dispose(); seqRef.current = null }
   }, [drums, synthRoll, accentEvery])
 
+  // Auto-advance the piano roll page to follow the playhead
+  useEffect(() => {
+    if (!followRoll) return;
+    const page = Math.floor(step / 8); // 0 for steps 1–8, 1 for steps 9–16
+    if (page !== pianoPage) setPianoPage(page);
+  }, [step, followRoll, pianoPage]);
+
+
   async function startStop() {
     if (!startedRef.current) { await Tone.start(); startedRef.current = true }
     if (isPlaying) { Tone.Transport.stop(); setIsPlaying(false); setStep(0) }
@@ -744,8 +755,19 @@ export default function App() {
           <button className="button xs" onClick={()=>{
             setState(prev => ({ ...prev, synthRoll: Array(STEPS).fill(null)}))
           }}>Clear</button>
-          <button className="button secondary xs" onClick={prevPianoPage}>◀ Prev 8</button>
-          <button className="button secondary xs" onClick={nextPianoPage}>Next 8 ▶</button>
+
+          {/* Follow toggle */}
+          <label className="small" style={{display:'inline-flex',alignItems:'center',gap:6, marginLeft:8}}>
+            <input
+              type="checkbox"
+              checked={followRoll}
+              onChange={(e)=>setFollowRoll(e.target.checked)}
+            />
+            Follow
+          </label>
+
+          <button className="button secondary xs" onClick={prevPianoPage} disabled={followRoll}>◀ Prev 8</button>
+          <button className="button secondary xs" onClick={nextPianoPage} disabled={followRoll}>Next 8 ▶</button>
         </div>
 
         {/* paged grid */}
