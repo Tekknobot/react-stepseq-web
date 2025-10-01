@@ -6,6 +6,9 @@
   --text: #f3f3f4;
   --sub: #9ca3af;
   --accent: #38bdf8;
+
+  --cell: 28px;  /* <<< step/cell size */
+  --gap:  6px;   /* spacing between steps */
 }
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }
