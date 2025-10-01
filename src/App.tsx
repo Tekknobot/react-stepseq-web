@@ -464,34 +464,65 @@ export default function App() {
             </button>
           </div>
 
-          {/* exact 2 × 8 grid */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(8, var(--cell, 44px))',
-              gridTemplateRows: 'repeat(2, var(--cell, 44px))',
-              gap: 'var(--gap, 8px)',
-              padding: '12px 0'
-            }}
-          >
-            {Array.from({ length: 16 }).map((_, idx) => {
-              const on = drums[TRACKS[currentTrackIndex].id][idx]
-              const playing = isPlaying && idx === step
-              const quarter = idx % 4 === 0
-              return (
-                <button
-                  key={idx}
-                  className={'step' + (on ? ' on' : '') + (quarter ? ' quarter' : '') + (playing ? ' playing' : '')}
-                  onClick={() => toggleDrum(TRACKS[currentTrackIndex].id, idx)}
-                  title={`Step ${idx + 1}`}
+          {/* exact 2 × 8 grid with step labels */}
+          <div style={{padding:'12px 0'}}>
+            {[0,1].map(bank => (
+              <div key={'bank-'+bank} style={{marginBottom:8}}>
+                {/* labels row (1–8 for bank 0, 9–16 for bank 1) */}
+                <div
+                  className="grid"
                   style={{
-                    width: 'var(--cell, 44px)',
-                    height: 'var(--cell, 44px)',
-                    ...(on ? { background: TRACKS[currentTrackIndex].color, color: '#0b1012' } : null),
+                    gridTemplateColumns: 'repeat(8, var(--cell, 44px))',
+                    gap: 'var(--gap, 8px)',
+                    marginBottom: 6,
                   }}
-                />
-              )
-            })}
+                >
+                  {Array.from({length: 8}).map((_, col) => (
+                    <div
+                      key={'lbl-'+bank+'-'+col}
+                      className="label small"
+                      style={{ textAlign:'center' }}
+                    >
+                      {bank*8 + col + 1}
+                    </div>
+                  ))}
+                </div>
+
+                {/* buttons row */}
+                <div
+                  className="grid"
+                  style={{
+                    gridTemplateColumns: 'repeat(8, var(--cell, 44px))',
+                    gap: 'var(--gap, 8px)',
+                  }}
+                >
+                  {Array.from({length: 8}).map((_, col) => {
+                    const idx = bank*8 + col; // 0..15
+                    const on = drums[TRACKS[currentTrackIndex].id][idx];
+                    const playing = isPlaying && idx === step;
+                    const quarter = idx % 4 === 0;
+                    return (
+                      <button
+                        key={'btn-'+bank+'-'+col}
+                        className={
+                          'step' +
+                          (on ? ' on' : '') +
+                          (quarter ? ' quarter' : '') +
+                          (playing ? ' playing' : '')
+                        }
+                        onClick={() => toggleDrum(TRACKS[currentTrackIndex].id, idx)}
+                        title={`Step ${idx + 1}`}
+                        style={{
+                          width: 'var(--cell, 44px)',
+                          height: 'var(--cell, 44px)',
+                          ...(on ? { background: TRACKS[currentTrackIndex].color, color: '#0b1012' } : null),
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -523,9 +554,10 @@ export default function App() {
         <div style={{padding:'12px 0'}}>
           <div style={{
             display:'grid',
-            gridTemplateColumns:`40px repeat(8, var(--cell, 44px))`,
+            gridTemplateColumns:`28px repeat(8, var(--cell, 44px))`, // was 40px
             gap:'var(--gap, 8px)'
           }}>
+
             {/* column labels */}
             <div />
             {Array.from({length:8}).map((_,i)=>
@@ -536,7 +568,7 @@ export default function App() {
 
             {ROLL_NOTES.map((note, rowIdx) => (
               <React.Fragment key={note}>
-                <div className="label small" style={{textAlign:'right', paddingRight:6}}>{note}</div>
+                <div className="label small" style={{textAlign:'right', paddingRight:2}}>{note}</div>
                 {Array.from({length:8}).map((_, colIdx) => {
                   const stepIndex = pianoPage*8 + colIdx
                   const on = synthRoll[stepIndex] === rowIdx
