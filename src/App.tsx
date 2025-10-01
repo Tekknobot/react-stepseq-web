@@ -17,168 +17,30 @@ type RollIndex = number | null
 
 type PatternState = {
   drums: Record<TrackId, boolean[]>
-  synthRoll: RollIndex[] // length = STEPS, per-step note index or null
+  synthRoll: RollIndex[]         // length = STEPS
+  samplerRoll: MarkerIndex[]     // length = STEPS, which marker to play at each step
 }
 
 function makeEmpty(): PatternState {
   const drums = TRACKS.reduce(
     (acc, t) => ({ ...acc, [t.id]: Array(STEPS).fill(false) }),
     {} as Record<TrackId, boolean[]>
-  )
-  const synthRoll = Array<RollIndex>(STEPS).fill(null)
-  return { drums, synthRoll }
-}
-
-// --- Polished SVG Knob ---
-// Features:
-// - clear marker (needle + end-cap dot + top notch)
-// - tick marks
-// - drag (vertical), wheel, keyboard nudge, double-click to reset
-// - accessible (aria + focus ring)
-// Usage: <Knob value={...} min={...} max={...} step={...} label="Cutoff" suffix="Hz" onChange={...} defaultValue={1200} />
-function Knob({
-  value, min, max, step = 1,
-  onChange,
-  label,
-  size = 72,
-  suffix = '',
-  defaultValue,
-}: {
-  value: number; min: number; max: number; step?: number;
-  onChange: (v:number)=>void; label: string; size?: number; suffix?: string;
-  defaultValue?: number;
-}) {
-  const [drag, setDrag] = React.useState<{y:number; start:number}|null>(null);
-  const ref = React.useRef<HTMLDivElement>(null);
-
-  // geometry
-  const rPad = 10;
-  const radius = (size/2) - rPad;
-  const cx = size/2, cy = size/2;
-  const START = -135;           // deg
-  const SWEEP = 270;            // deg
-
-  const clamp = (v:number) => Math.min(max, Math.max(min, v));
-  const norm = (v:number) => (clamp(v) - min) / (max - min); // 0..1
-  const angle = START + SWEEP * norm(value);
-
-  const toXY = (deg:number, rad=radius) => {
-    const a = (deg * Math.PI) / 180;
-    return [cx + rad*Math.cos(a), cy + rad*Math.sin(a)];
-  };
-
-  // arc endpoints
-  const [sx, sy] = toXY(START);
-  const [ex, ey] = toXY(angle);
-  const largeArc = SWEEP * norm(value) > 180 ? 1 : 0;
-
-  const commit = (next:number) => onChange(clamp(Math.round(next/step)*step));
-
-  // drag
-  const onPointerDown = (e: React.PointerEvent) => {
-    (e.target as Element).setPointerCapture(e.pointerId);
-    setDrag({ y: e.clientY, start: value });
-  };
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!drag) return;
-    const dy = drag.y - e.clientY;    // up = increase
-    const sens = (max-min) / 180;     // pixels-to-value feel
-    commit(drag.start + dy * sens);
-  };
-  const onPointerUp = (e: React.PointerEvent) => {
-    (e.target as Element).releasePointerCapture(e.pointerId);
-    setDrag(null);
-  };
-
-  // wheel + keyboard
-  const onWheel: React.WheelEventHandler = (e) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -step : step;
-    commit(value + delta);
-  };
-  const onKeyDown: React.KeyboardEventHandler = (e) => {
-    if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { commit(value + step); }
-    if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { commit(value - step); }
-    if ((e.key === 'Home')) { commit(min); }
-    if ((e.key === 'End'))  { commit(max); }
-    if ((e.key === 'r' || e.key === 'R') && defaultValue !== undefined) { commit(defaultValue); }
-  };
-
-  // double-click reset
-  const onDoubleClick = () => {
-    if (defaultValue !== undefined) commit(defaultValue);
-  };
-
-  // ticks (every 30° across sweep)
-  const ticks: JSX.Element[] = [];
-  for (let d = 0; d <= SWEEP; d += 30) {
-    const deg = START + d;
-    const [tx1, ty1] = toXY(deg, radius - 6);
-    const [tx2, ty2] = toXY(deg, radius - 12);
-    ticks.push(<line key={d} x1={tx1} y1={ty1} x2={tx2} y2={ty2} className="knobTick" />);
-  }
-  // top notch (at START+SWEEP/2 ≈ 0° visual top)
-  const [nx, ny] = toXY(START + SWEEP/2, radius - 18);
-
-  return (
-    <div className="knobWrap" ref={ref}>
-      <div
-        className="knobFocus"
-        role="slider"
-        aria-label={label}
-        aria-valuemin={min}
-        aria-valuemax={max}
-        aria-valuenow={clamp(value)}
-        tabIndex={0}
-        onKeyDown={onKeyDown}
-        onDoubleClick={onDoubleClick}
-      >
-        <svg
-          width={size} height={size}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onWheel={onWheel}
-          className="knobSvg"
-        >
-          {/* base circle */}
-          <circle cx={cx} cy={cy} r={radius} className="knobBase" />
-
-          {/* ticks */}
-          {ticks}
-
-          {/* grey track */}
-          <path
-            d={`M ${toXY(START)[0]} ${toXY(START)[1]} A ${radius} ${radius} 0 1 1 ${toXY(START+SWEEP-0.001)[0]} ${toXY(START+SWEEP-0.001)[1]}`}
-            className="knobTrack"
-          />
-          {/* active arc */}
-          <path
-            d={`M ${sx} ${sy} A ${radius} ${radius} 0 ${largeArc} 1 ${ex} ${ey}`}
-            className="knobArc"
-          />
-
-          {/* needle + end dot */}
-          <line x1={cx} y1={cy} x2={ex} y2={ey} className="knobNeedle" />
-          <circle cx={ex} cy={ey} r={3.2} className="knobDot" />
-
-          {/* top notch */}
-          <circle cx={nx} cy={ny} r={2} className="knobNotch" />
-        </svg>
-      </div>
-      <div className="knobLabel">{label}</div>
-      <div className="knobValue">
-        {Number.isInteger(value) ? value : +value.toFixed(2)}{suffix}
-      </div>
-    </div>
   );
+  const synthRoll = Array<RollIndex>(STEPS).fill(null);
+  const samplerRoll = Array<MarkerIndex>(STEPS).fill(null);
+  return { drums, synthRoll, samplerRoll };
 }
+
+// --- Sampler types (16 markers; per-step chooses one marker or null) ---
+type MarkerIndex = number | null; // 0..15 or null
+const MAX_MARKERS = 16;
 
 export default function App() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [bpm, setBpm] = useState(120)
   const [swing, setSwing] = useState(0)
   const [accentEvery, setAccentEvery] = useState(4)
+  const [playerReady, setPlayerReady] = useState(false);
 
   // render 16 steps as 2 rows of 8
   const COLS = 8;
@@ -204,6 +66,13 @@ export default function App() {
     setFollowRoll(false);
     setPianoPage((p) => (p - 1 + 2) % 2);
   }
+
+  // --- Sampler state ---
+  const audioRef = useRef<HTMLAudioElement | null>(null);   // preview / marker capture
+  const sampleUrlRef = useRef<string | null>(null);         // object URL
+  const playerRef = useRef<Tone.Player | null>(null);       // sequenced playback
+
+  const [markers, setMarkers] = useState<number[]>([]);     // seconds (sorted, up to 16)
 
   // ---- Helpers for musical randomization ----
   const SCALES: Record<string, number[]> = {
@@ -406,6 +275,70 @@ export default function App() {
     setState(prev => ({ ...prev, synthRoll: line }));
   }
 
+  async function onSampleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // revoke old object URL
+    if (sampleUrlRef.current) URL.revokeObjectURL(sampleUrlRef.current);
+
+    const url = URL.createObjectURL(file);
+    sampleUrlRef.current = url;
+
+    // set <audio> src for preview/marker capture
+    if (!audioRef.current) {
+      // create if not present (we’ll render it in JSX too)
+      audioRef.current = new Audio();
+    }
+    audioRef.current.src = url;
+    audioRef.current.crossOrigin = 'anonymous';
+
+    // (re)build Tone.Player for sequenced playback
+    if (playerRef.current) { playerRef.current.dispose(); playerRef.current = null; }
+    setPlayerReady(false);
+
+    const p = new Tone.Player({
+      volume: -4,
+      fadeIn: 0.002,
+      fadeOut: 0.008,
+      autostart: false,
+      loop: false,
+    }).connect((synthsRef.current as any)?.bus ?? Tone.getDestination());
+
+    playerRef.current = p;
+
+    // Load the file (typed) and flag ready when done
+    let cancelled = false;
+    p.load(url).then(() => { if (!cancelled) setPlayerReady(true); }).catch(() => {});
+    // cleanup guard in case a new file is chosen quickly
+    // (optional here since onSampleFile is user-driven)
+
+    // clear markers on new file
+    setMarkers([]);
+  }
+
+  function addMarkerHere() {
+    const a = audioRef.current;
+    if (!a) return;
+    const t = a.currentTime || 0;
+    setMarkers(prev => {
+      if (prev.length >= MAX_MARKERS) return prev;
+      const next = [...prev, t].sort((x, y) => x - y);
+      return next;
+    });
+  }
+
+  function clearMarkers() {
+    setMarkers([]);
+  }
+
+  function toggleSamplerCell(markerRow: number, stepCol: number) {
+    setState(prev => {
+      const next = { ...prev, samplerRoll: [...prev.samplerRoll] };
+      next.samplerRoll[stepCol] = (next.samplerRoll[stepCol] === markerRow ? null : markerRow);
+      return next;
+    });
+  }
 
   // ---- Synth tone controls (UI state) ----
   const [wave, setWave] = useState<'sine'|'triangle'|'square'|'sawtooth'>('sawtooth')
@@ -420,13 +353,18 @@ export default function App() {
 
   // load/save state (keeps compatibility with the old drum-only save)
   const [state, setState] = useState<PatternState>(() => {
-    const saved = localStorage.getItem('patterns_v2')
-    if (saved) return JSON.parse(saved)
-    const legacy = localStorage.getItem('patterns')
-    if (legacy) return { drums: JSON.parse(legacy), synthRoll: Array(STEPS).fill(null) }
-    return makeEmpty()
-  })
-  const { drums, synthRoll } = state
+    const saved = localStorage.getItem('patterns_v2');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // ensure samplerRoll exists for backward compat
+      if (!parsed.samplerRoll) parsed.samplerRoll = Array(STEPS).fill(null);
+      return parsed;
+    }
+    const legacy = localStorage.getItem('patterns');
+    if (legacy) return { drums: JSON.parse(legacy), synthRoll: Array(STEPS).fill(null), samplerRoll: Array(STEPS).fill(null) };
+    return makeEmpty();
+  });
+  const { drums, synthRoll, samplerRoll } = state;
 
   const [step, setStep] = useState(0)
 
@@ -547,7 +485,24 @@ export default function App() {
         const note = ROLL_NOTES[r]
         ;(synthsRef.current as any).synth.triggerAttackRelease(note, '16n', time, 0.85)
       }
+
+      // --- Sampler: play marker -> next marker, then stop ---
+      if (playerRef.current) {
+        const mark = samplerRoll[i]; // 0..15 or null
+        const duration = playerRef.current.buffer?.duration ?? 0;
+        if (mark !== null && duration > 0 && markers.length) {
+          const start = Math.max(0, Math.min(duration, markers[mark] ?? 0));
+          const next  = (mark + 1 < markers.length) ? markers[mark + 1]! : duration;
+          const dur   = Math.max(0.005, Math.min(duration - start, next - start)); // ensure > 0
+
+          if (dur > 0) {
+            // Start at 'start', play exactly until the next marker (or end of file)
+            playerRef.current.start(time, start, dur);
+          }
+        }
+      }
     }, [...Array(STEPS).keys()], '16n')
+
     seq.start(0)
     seqRef.current = seq
 
@@ -567,6 +522,33 @@ export default function App() {
     if (isPlaying) { Tone.Transport.stop(); setIsPlaying(false); setStep(0) }
     else { Tone.Transport.start('+0.05'); setIsPlaying(true) }
   }
+
+  // Recreate Tone.Player whenever a new sample URL is loaded (defensive; main path is onSampleFile)
+  useEffect(() => {
+    const url = sampleUrlRef.current;
+    if (!url) return;
+
+    if (playerRef.current) { playerRef.current.dispose(); playerRef.current = null; }
+    setPlayerReady(false);
+
+    const p = new Tone.Player({
+      volume: -4,
+      fadeIn: 0.002,
+      fadeOut: 0.008,
+      autostart: false,
+      loop: false,
+    }).connect((synthsRef.current as any)?.bus ?? Tone.getDestination());
+
+    playerRef.current = p;
+
+    let cancelled = false;
+    p.load(url).then(() => {
+      if (!cancelled) setPlayerReady(true);
+    }).catch(() => {});
+
+    return () => { cancelled = true; };
+  }, []); // leave empty or remove this effect entirely; onSampleFile already handles loading
+
 
   // Drum toggles
   function toggleDrum(track: TrackId, i: number) {
@@ -589,18 +571,17 @@ export default function App() {
   function randomizeAll() {
     const densities: Record<TrackId, number> = { kick: 0.35, snare: 0.25, hihat: 0.5, perc: 0.2 }
 
-    // 1) Randomize drums
     setState(() => {
-      const next = makeEmpty()
+      const next = makeEmpty();
       for (const t of TRACKS) {
-        next.drums[t.id] = Array.from({ length: STEPS }, () => Math.random() < densities[t.id])
+        next.drums[t.id] = Array.from({ length: STEPS }, () => Math.random() < densities[t.id]);
       }
-      // leave synthRoll alone here; we'll use the smarter generator below
-      return next
-    })
+      // leave samplerRoll empty by default; or sprinkle:
+      // next.samplerRoll = Array.from({length:STEPS}, () => (Math.random()<0.25 ? Math.floor(Math.random()*MAX_MARKERS) : null));
+      return next;
+    });
 
-    // 2) Randomize synth with ~75% density using the smarter musical generator
-    randomizeSynth(0.75)
+    randomizeSynth(0.75);
   }
 
   // Piano roll toggle (monophonic per step)
@@ -807,6 +788,76 @@ export default function App() {
                       }}
                     />
                   )
+                })}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* --- Sampler Panel --- */}
+      <div className="panel" style={{ marginTop: 12, marginBottom: 12 }}>
+        <div className="trackHead">
+          <div className="row">
+            <div style={{width:12,height:12,borderRadius:6, background:'#22d3ee', marginRight:8}}/>
+            <strong>Sampler</strong>
+            <span className="small" style={{ marginLeft: 8, color: 'var(--sub)' }}>
+              {markers.length}/{MAX_MARKERS} markers
+            </span>
+          </div>
+        </div>
+
+        {/* controls */}
+        <div className="row" style={{ gap: 8, margin: '6px 0 10px' }}>
+          <input type="file" accept="audio/*" onChange={onSampleFile} />
+          <button className="button secondary xs" onClick={() => audioRef.current?.play()} disabled={!playerReady}>Preview ▶</button>
+          <button className="button secondary xs" onClick={() => audioRef.current?.pause()} disabled={!playerReady}>Pause ⏸</button>
+          <button className="button xs" onClick={addMarkerHere} disabled={!sampleUrlRef.current || markers.length>=MAX_MARKERS}>Add Marker @ Playhead</button>
+          <button className="button xs" onClick={clearMarkers} disabled={!markers.length}>Clear Markers</button>
+        </div>
+
+        {/* simple marker ruler */}
+        {sampleUrlRef.current && (
+          <div className="small" style={{marginBottom:8, color:'var(--sub)'}}>
+            Markers (s): {markers.map((t,i)=>`${i+1}:${t.toFixed(2)}`).join('  ·  ') || '—'}
+          </div>
+        )}
+
+        {/* Sampler grid: 16 rows (markers) × 16 cols (steps) */}
+        <div style={{ padding: '12px 0' }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: `28px repeat(8, var(--cell, 44px))`,
+            gap: 'var(--gap, 8px)'
+          }}>
+            <div />
+            {Array.from({ length: 8 }).map((_, i) =>
+              <div key={'samp-col-lbl-'+i} className="label small" style={{ textAlign: 'center' }}>
+                {i + 1}
+              </div>
+            )}
+            {/* rows 0..15 (show 1..16 label) */}
+            {Array.from({ length: MAX_MARKERS }).map((_, rowIdx) => (
+              <React.Fragment key={'samp-row-'+rowIdx}>
+                <div className="label small" style={{ textAlign: 'right', paddingRight: 2 }}>#{rowIdx+1}</div>
+                {Array.from({ length: 8 }).map((_, colIdx) => {
+                  const stepIndex = pianoPage * 8 + colIdx; // first 8 steps on this page; reuse your paging if you want
+                  const on = samplerRoll[stepIndex] === rowIdx;
+                  const playing = isPlaying && stepIndex === step;
+                  const quarter = stepIndex % 4 === 0;
+                  return (
+                    <button
+                      key={'samp-cell-'+rowIdx+'-'+colIdx}
+                      className={'step' + (on?' on':'') + (quarter?' quarter':'') + (playing?' playing':'')}
+                      onClick={() => toggleSamplerCell(rowIdx, stepIndex)}
+                      title={`Marker #${rowIdx+1} @ step ${stepIndex+1}`}
+                      style={{
+                        width:'var(--cell, 44px)',
+                        height:'var(--cell, 44px)',
+                        ...(on ? { background: '#22d3ee', color: '#0b1012' } : null)
+                      }}
+                    />
+                  );
                 })}
               </React.Fragment>
             ))}
