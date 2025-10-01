@@ -180,6 +180,28 @@ export default function App() {
   const [swing, setSwing] = useState(0)
   const [accentEvery, setAccentEvery] = useState(4)
 
+  // render 16 steps as 2 rows of 8
+  const COLS = 8;
+  const isPlayingCol = (i:number) => isPlaying && i === step;
+
+  const [currentTrackIndex, setCurrentTrackIndex] = useState(0)
+
+  function nextTrack() {
+    setCurrentTrackIndex((i) => (i + 1) % TRACKS.length)
+  }
+  function prevTrack() {
+    setCurrentTrackIndex((i) => (i - 1 + TRACKS.length) % TRACKS.length)
+  }
+
+  const [pianoPage, setPianoPage] = useState(0) // 0 = steps 1–8, 1 = steps 9–16
+
+  function nextPianoPage() {
+    setPianoPage((p) => (p + 1) % 2)
+  }
+  function prevPianoPage() {
+    setPianoPage((p) => (p - 1 + 2) % 2)
+  }
+
   // ---- Synth tone controls (UI state) ----
   const [wave, setWave] = useState<'sine'|'triangle'|'square'|'sawtooth'>('sawtooth')
   const [cutoff, setCutoff] = useState(1200)      // Hz
@@ -398,169 +420,107 @@ export default function App() {
         </div>
       </div>
 
-      {/* Drum tracks */}
-      <div style={{display:'grid', gap:12, marginTop:12}}>
-        {TRACKS.map(t => (
-          <div key={t.id} className="track panel">
-            <div className="trackHead">
-              <div className="row">
-                <div style={{width:12,height:12,borderRadius:6, background:t.color, marginRight:8}}/>
-                <strong>{t.name}</strong>
-              </div>
-              <div className="row">
-                <button className="button secondary small" onClick={()=>randomizeDrum(t.id, 0.3)}>Randomize</button>
-                <button className="button small" onClick={()=>clearDrum(t.id)}>Clear</button>
-              </div>
-            </div>
-            <div className="grid">
-              {drums[t.id].map((on, i) => {
-                const playing = isPlaying && i === step
-                const quarter = i % 4 === 0
-                return (
-                  <button
-                    key={i}
-                    className={'step' + (on?' on':'') + (quarter?' quarter':'') + (playing?' playing':'')}
-                    onClick={()=>toggleDrum(t.id, i)}
-                    title={`Step ${i+1}`}
-                    style={on?{background:t.color,color:'#0b1012'}:undefined}
-                  >
-                    {i+1}
-                  </button>
-                )
-              })}
-            </div>
+      {/* Drum track viewer — 2 rows × 8 cols (16 steps) */}
+      <div style={{marginTop:12}}>
+        <div className="row" style={{justifyContent:'space-between', marginBottom:8}}>
+          <button className="button secondary" onClick={prevTrack}>◀ Prev</button>
+          <div className="small">
+            {TRACKS[currentTrackIndex].name} ({currentTrackIndex+1}/{TRACKS.length})
           </div>
-        ))}
-      </div>
-
-      {/* Piano Roll */}
-      <div className="panel" style={{marginTop:12}}>
-        <div className="trackHead" style={{marginBottom:8}}>
-          <div className="row">
-            <div style={{width:12,height:12,borderRadius:6, background:'#a78bfa', marginRight:8}}/>
-            <strong>Synth (Piano Roll)</strong>
-          </div>
-          <div className="row">
-            <button
-              className="button secondary small"
-              onClick={()=>{
-                setState(prev => ({ ...prev, synthRoll: Array(STEPS).fill(null)}))
-              }}
-            >
-              Clear Synth
-            </button>
-          </div>
+          <button className="button secondary" onClick={nextTrack}>Next ▶</button>
         </div>
 
-        <div style={{display:'grid', gridTemplateColumns:`40px repeat(${STEPS}, 44px)`, gap:8}}>
-          {/* note labels */}
+        <div className="track panel">
+          <div className="trackHead">
+            <div className="row">
+              <div style={{width:12,height:12,borderRadius:6, background:TRACKS[currentTrackIndex].color, marginRight:8}}/>
+              <strong>{TRACKS[currentTrackIndex].name}</strong>
+            </div>
+            <div className="row">
+              <button className="button secondary small" onClick={()=>randomizeDrum(TRACKS[currentTrackIndex].id,0.3)}>Randomize</button>
+              <button className="button small" onClick={()=>clearDrum(TRACKS[currentTrackIndex].id)}>Clear</button>
+            </div>
+          </div>
+
+          {/* exact 2 × 8 grid */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(8, var(--cell, 44px))',
+              gridTemplateRows: 'repeat(2, var(--cell, 44px))',
+              gap: 'var(--gap, 8px)',
+            }}
+          >
+            {Array.from({ length: 16 }).map((_, idx) => {
+              const on = drums[TRACKS[currentTrackIndex].id][idx]
+              const playing = isPlaying && idx === step
+              const quarter = idx % 4 === 0
+              return (
+                <button
+                  key={idx}
+                  className={'step' + (on ? ' on' : '') + (quarter ? ' quarter' : '') + (playing ? ' playing' : '')}
+                  onClick={() => toggleDrum(TRACKS[currentTrackIndex].id, idx)}
+                  title={`Step ${idx + 1}`}
+                  // hard fallback sizes so it never stretches full width
+                  style={{
+                    width: 'var(--cell, 44px)',
+                    height: 'var(--cell, 44px)',
+                    ...(on ? { background: TRACKS[currentTrackIndex].color, color: '#0b1012' } : null),
+                  }}
+                />
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Piano Roll grid, paged 8 steps at a time */}
+      <div style={{marginBottom:8, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+        <button className="button secondary small" onClick={prevPianoPage}>◀ Prev 8</button>
+        <div className="small">Steps {pianoPage*8+1}–{pianoPage*8+8}</div>
+        <button className="button secondary small" onClick={nextPianoPage}>Next 8 ▶</button>
+      </div>
+
+      {/* wrap the roll grid in a .panel */}
+      <div className="panel" style={{padding:'12px', marginBottom:12}}>
+        <div style={{
+          display:'grid',
+          gridTemplateColumns:`40px repeat(8, var(--cell, 44px))`,
+          gap:'var(--gap, 8px)'
+        }}>
+          {/* Column labels */}
           <div />
-          {Array.from({length:STEPS}).map((_,i)=>
-            <div key={'colLabel'+i} className="label small" style={{textAlign:'center'}}>{i+1}</div>
+          {Array.from({length:8}).map((_,i)=>
+            <div key={'colLabel'+i} className="label small" style={{textAlign:'center'}}>
+              {pianoPage*8 + i + 1}
+            </div>
           )}
 
           {ROLL_NOTES.map((note, rowIdx) => (
             <React.Fragment key={note}>
               <div className="label small" style={{textAlign:'right', paddingRight:6}}>{note}</div>
-              {Array.from({length:STEPS}).map((_, colIdx) => {
-                const on = synthRoll[colIdx] === rowIdx
-                const playing = isPlaying && colIdx === step
-                const quarter = colIdx % 4 === 0
+              {Array.from({length:8}).map((_, colIdx) => {
+                const stepIndex = pianoPage*8 + colIdx
+                const on = synthRoll[stepIndex] === rowIdx
+                const playing = isPlaying && stepIndex === step
+                const quarter = stepIndex % 4 === 0
                 return (
                   <button
                     key={note+colIdx}
                     className={'step' + (on?' on':'') + (quarter?' quarter':'') + (playing?' playing':'')}
-                    onClick={()=>toggleRoll(rowIdx,colIdx)}
-                    title={`${note} @ step ${colIdx+1}`}
-                    style={on?{background:'#a78bfa',color:'#0b1012'}:undefined}
+                    onClick={()=>toggleRoll(rowIdx, stepIndex)}
+                    title={`${note} @ step ${stepIndex+1}`}
+                    style={{
+                      width:'var(--cell, 44px)',
+                      height:'var(--cell, 44px)',
+                      ...(on?{background:'#a78bfa',color:'#0b1012'}:null)
+                    }}
                   />
                 )
               })}
             </React.Fragment>
           ))}
         </div>
-
-        {/* ---- Synth Parameter Controls (redesigned) ---- */}
-        <div className="ctrlPanel" style={{marginTop:12}}>
-          {/* Oscillator */}
-          <div className="ctrlCard">
-            <div className="ctrlTitle">Oscillator</div>
-            <div className="row" style={{gap:10, flexWrap:'wrap'}}>
-              <div className="row" style={{gap:8}}>
-                <span className="small">Wave</span>
-                <select value={wave} onChange={e=>setWave(e.target.value as any)}>
-                  <option value="sine">sine</option>
-                  <option value="triangle">triangle</option>
-                  <option value="square">square</option>
-                  <option value="sawtooth">sawtooth</option>
-                </select>
-              </div>
-
-              <Knob label="Detune" value={detune} min={-1200} max={1200} step={1}
-                onChange={setDetune} suffix="¢" />
-              <Knob label="Porta" value={porta} min={0} max={0.5} step={0.005}
-                onChange={setPorta} suffix="s" />
-            </div>
-          </div>
-
-          {/* Filter */}
-          <div className="ctrlCard">
-            <div className="ctrlTitle">Filter</div>
-            <div className="row" style={{gap:14, flexWrap:'wrap'}}>
-              <Knob label="Cutoff" value={cutoff} min={80} max={8000} step={10}
-                onChange={setCutoff} suffix="Hz" />
-              <Knob label="Res(Q)" value={resonance} min={0.5} max={20} step={0.1}
-                onChange={setResonance} />
-              <div style={{minWidth:220}}>
-                <div className="ctrlRow">
-                  <span className="small">Cutoff</span>
-                  <input type="range" min={80} max={8000} value={cutoff}
-                    onChange={e=>setCutoff(parseInt(e.target.value))}
-                    style={{width:180}}/>
-                  <span className="small">{cutoff}Hz</span>
-                </div>
-                <div className="ctrlRow">
-                  <span className="small">Res</span>
-                  <input type="range" min={0.5} max={20} step={0.1} value={resonance}
-                    onChange={e=>setResonance(parseFloat(e.target.value))}
-                    style={{width:180}}/>
-                  <span className="small">{resonance.toFixed(1)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Envelope (ADSR) */}
-          <div className="ctrlCard">
-            <div className="ctrlTitle">Envelope</div>
-            <div className="row" style={{gap:16, flexWrap:'wrap'}}>
-              <Knob label="Attack"  value={attack}  min={0} max={0.5} step={0.005} onChange={setAttack}  suffix="s"/>
-              <Knob label="Decay"   value={decay}   min={0} max={1}   step={0.01}  onChange={setDecay}   suffix="s"/>
-              <Knob label="Sustain" value={sustain} min={0} max={1}   step={0.01}  onChange={setSustain}/>
-              <Knob label="Release" value={release} min={0} max={1}   step={0.01}  onChange={setRelease} suffix="s"/>
-            </div>
-          </div>
-
-          {/* Helpful long sliders (fine adjust) */}
-          <div className="ctrlCard">
-            <div className="ctrlTitle">Fine Adjust</div>
-            <div className="ctrlRow">
-              <span className="small">Detune</span>
-              <input type="range" min={-1200} max={1200} step={1} value={detune}
-                onChange={e=>setDetune(parseInt(e.target.value))}
-                style={{width:220}}/>
-              <span className="small">{detune}¢</span>
-            </div>
-            <div className="ctrlRow">
-              <span className="small">Porta</span>
-              <input type="range" min={0} max={0.5} step={0.005} value={porta}
-                onChange={e=>setPorta(parseFloat(e.target.value))}
-                style={{width:220}}/>
-              <span className="small">{porta.toFixed(3)}s</span>
-            </div>
-          </div>
-        </div>
-        {/* ---- end synth controls ---- */}
       </div>
 
       <div className="footer">Built with React + Tone.js. Tip: headphones help. Patterns auto-save.</div>
