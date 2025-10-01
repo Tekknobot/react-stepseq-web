@@ -7,8 +7,8 @@
   --sub: #9ca3af;
   --accent: #38bdf8;
 
-  --cell: 28px;  /* <<< step/cell size */
-  --gap:  6px;   /* spacing between steps */
+  --cell: 24px;  /* <<< step/cell size */
+  --gap:  8px;   /* spacing between steps */
 }
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }
