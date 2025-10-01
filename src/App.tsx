@@ -67,6 +67,10 @@ export default function App() {
     setPianoPage((p) => (p - 1 + 2) % 2);
   }
 
+  function clearSamplerPattern() {
+    setState(prev => ({ ...prev, samplerRoll: Array(STEPS).fill(null) }));
+  }
+
   // --- Sampler state ---
   const audioRef = useRef<HTMLAudioElement | null>(null);   // preview / marker capture
   const sampleUrlRef = useRef<string | null>(null);         // object URL
@@ -819,6 +823,15 @@ export default function App() {
           </button>
           <button className="button xs" onClick={clearMarkers} disabled={!markers.length}>
             Clear Markers
+          </button>
+
+          <button
+            className="button xs"
+            onClick={clearSamplerPattern}
+            // disable only if the pattern is already empty (careful: marker 0 is valid)
+            disabled={!samplerRoll.some(v => v !== null)}
+          >
+            Clear Pattern
           </button>
 
           {/* Paging controls (shared with synth) */}
