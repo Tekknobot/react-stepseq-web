@@ -808,12 +808,31 @@ export default function App() {
         </div>
 
         {/* controls */}
-        <div className="row" style={{ gap: 8, margin: '6px 0 10px' }}>
+        <div className="row" style={{ gap: 8, margin: '6px 0 10px', flexWrap: 'wrap' }}>
           <input type="file" accept="audio/*" onChange={onSampleFile} />
+
           <button className="button secondary xs" onClick={() => audioRef.current?.play()} disabled={!playerReady}>Preview ▶</button>
           <button className="button secondary xs" onClick={() => audioRef.current?.pause()} disabled={!playerReady}>Pause ⏸</button>
-          <button className="button xs" onClick={addMarkerHere} disabled={!sampleUrlRef.current || markers.length>=MAX_MARKERS}>Add Marker @ Playhead</button>
-          <button className="button xs" onClick={clearMarkers} disabled={!markers.length}>Clear Markers</button>
+
+          <button className="button xs" onClick={addMarkerHere} disabled={!sampleUrlRef.current || markers.length>=MAX_MARKERS}>
+            Add Marker @ Playhead
+          </button>
+          <button className="button xs" onClick={clearMarkers} disabled={!markers.length}>
+            Clear Markers
+          </button>
+
+          {/* Paging controls (shared with synth) */}
+          <label className="small" style={{display:'inline-flex',alignItems:'center',gap:6, marginLeft:8}}>
+            <input
+              type="checkbox"
+              checked={followRoll}
+              onChange={(e)=>setFollowRoll(e.target.checked)}
+            />
+            Follow
+          </label>
+
+          <button className="button secondary xs" onClick={prevPianoPage} disabled={followRoll}>◀ Prev 8</button>
+          <button className="button secondary xs" onClick={nextPianoPage} disabled={followRoll}>Next 8 ▶</button>
         </div>
 
         {/* simple marker ruler */}
@@ -833,7 +852,7 @@ export default function App() {
             <div />
             {Array.from({ length: 8 }).map((_, i) =>
               <div key={'samp-col-lbl-'+i} className="label small" style={{ textAlign: 'center' }}>
-                {i + 1}
+                {pianoPage * 8 + i + 1}
               </div>
             )}
             {/* rows 0..15 (show 1..16 label) */}
