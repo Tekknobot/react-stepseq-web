@@ -202,3 +202,21 @@ input[type="range"] { accent-color: var(--accent, #a78bfa); }
     appearance: slider-vertical;
   }
 }
+
+.brand-badge {
+  font-family: "Orbitron", system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #e7f1ff 0%, #b6c4d6 60%, #95a8be 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.25);
+}
+
+.brand-badge .dot {
+  margin-right: 0.4ch;
+  color: #7dd3fc;                 /* cyan accent for the ◉ */
+  text-shadow: 0 0 10px rgba(125,211,252,0.4);
+}

@@ -434,7 +434,9 @@ export default function App() {
   // ------------------------ RENDER ------------------------
   return (
     <div className="app">
-      <h1>🎛️ Step Sequencer (Web)</h1>
+      <h1 className="brand-badge">
+        <span className="dot">◉</span> ZR-420
+      </h1>
 
       {/* Global controls */}
       <div className="controls row panel" style={{justifyContent:'space-between'}}>
