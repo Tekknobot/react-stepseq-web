@@ -181,6 +181,9 @@ export default function App() {
   const [accentEvery, setAccentEvery] = useState(4)
   const [playerReady, setPlayerReady] = useState(false);
 
+  // Width of the piano-roll section: label column (28px) + 8 cells + 8 gaps
+  const SYNTH_SECTION_WIDTH = 'calc(28px + 8 * var(--cell, 44px) + 8 * var(--gap, 8px))';
+
     // --- Mixer levels in dB (real console feel) ---
     const [mix, setMix] = useState({
       kick:   0,
@@ -857,7 +860,7 @@ export default function App() {
         </div>
 
         {/* paged grid */}
-        <div style={{padding:'12px 0'}}>
+        <div style={{ padding:'12px 0', width: SYNTH_SECTION_WIDTH, margin: '0 auto' }}>
           <div style={{ display:'grid', gridTemplateColumns:`28px repeat(8, var(--cell, 44px))`, gap:'var(--gap, 8px)' }}>
             <div />
             {Array.from({length:8}).map((_,i)=>(<div key={'colLabel'+i} className="label small" style={{textAlign:'center'}}>{pianoPage*8 + i + 1}</div>))}
@@ -882,7 +885,18 @@ export default function App() {
         </div>
 
         {/* --- Synth Controls Sub-Panel (now inside the Synth drawer) --- */}
-        <div className="subpanel" style={{marginTop:8, padding:'10px 12px', borderRadius:8, background:'var(--panelSub, #0f1518)'}}>
+          <div
+            className="subpanel"
+            style={{
+              marginTop: 8,
+              padding: '10px 12px',
+              borderRadius: 8,
+              background: 'var(--panelSub, #0f1518)',
+              width: SYNTH_SECTION_WIDTH,       // match piano roll width
+              marginLeft: 'auto',               // center
+              marginRight: 'auto'
+            }}
+          ></div>
           <div className="row" style={{gap:8, marginBottom:10, flexWrap:'wrap'}}>
             <label className="small" style={{display:'inline-flex', alignItems:'center', gap:6}}>
               <span className="label small">Wave</span>
@@ -903,94 +917,139 @@ export default function App() {
           </div>
 
           {/* Filter */}
-          <div className="panel" style={{padding:10, marginBottom:10}}>
-            <div className="row" style={{gap:12, alignItems:'center', flexWrap:'wrap'}}>
-              <strong className="small" style={{minWidth:60}}>Filter</strong>
-              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
-                <span className="label small" style={{width:70}}>Cutoff</span>
-                <input type="range" min={120} max={8000} step={1} value={cutoff} onChange={(e)=>setCutoff(parseInt(e.target.value))}/>
-                <span className="small" style={{width:56, textAlign:'right'}}>{cutoff} Hz</span>
-              </label>
-              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
-                <span className="label small" style={{width:70}}>Resonance</span>
-                <input type="range" min={0.2} max={10} step={0.01} value={resonance} onChange={(e)=>setResonance(parseFloat(e.target.value))}/>
-                <span className="small" style={{width:56, textAlign:'right'}}>{resonance.toFixed(2)} Q</span>
-              </label>
+          <div className="panel" style={{ padding: 10, marginBottom: 10 }}>
+            <strong className="small" style={{ display: 'block', marginBottom: 8 }}>Filter</strong>
+
+            {/* Cutoff */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 6, marginBottom: 10 }}>
+              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span className="label small">Cutoff</span>
+                <span className="small" style={{ minWidth: 64, textAlign: 'right' }}>{cutoff} Hz</span>
+              </div>
+              <input
+                type="range" min={120} max={8000} step={1}
+                value={cutoff} onChange={(e)=>setCutoff(parseInt(e.target.value))}
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            {/* Resonance */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 6 }}>
+              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span className="label small">Resonance</span>
+                <span className="small" style={{ minWidth: 64, textAlign: 'right' }}>{resonance.toFixed(2)} Q</span>
+              </div>
+              <input
+                type="range" min={0.2} max={10} step={0.01}
+                value={resonance} onChange={(e)=>setResonance(parseFloat(e.target.value))}
+                style={{ width: '100%' }}
+              />
             </div>
           </div>
 
           {/* Distortion */}
-          <div className="panel" style={{padding:10, marginBottom:10}}>
-            <div className="row" style={{gap:12, alignItems:'center', flexWrap:'wrap'}}>
-              <strong className="small" style={{minWidth:60}}>Distortion</strong>
-              <label className="small" style={{display:'inline-flex',alignItems:'center',gap:6}}>
-                <input type="checkbox" checked={distOn} onChange={(e)=>setDistOn(e.target.checked)} /> Enabled
+          <div className="panel" style={{ padding: 10, marginBottom: 10 }}>
+            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <strong className="small">Distortion</strong>
+              <label className="small" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <input type="checkbox" checked={distOn} onChange={(e)=>setDistOn(e.target.checked)} />
+                Enabled
               </label>
-              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
-                <span className="label small" style={{width:70}}>Amount</span>
-                <input type="range" min={0} max={1} step={0.001} value={distAmount} onChange={(e)=>setDistAmount(parseFloat(e.target.value))}/>
-                <span className="small" style={{width:56, textAlign:'right'}}>{distAmount.toFixed(3)}</span>
-              </label>
-              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
-                <span className="label small" style={{width:70}}>Mix</span>
-                <input type="range" min={0} max={1} step={0.001} value={distWet} onChange={(e)=>setDistWet(parseFloat(e.target.value))}/>
-                <span className="small" style={{width:56, textAlign:'right'}}>{Math.round(distWet*100)}%</span>
-              </label>
-              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
-                <span className="label small" style={{width:70}}>Oversample</span>
-                <select value={distOversample} onChange={(e)=>setDistOversample(e.target.value as any)}>
-                  <option value="none">none</option>
-                  <option value="2x">2x</option>
-                  <option value="4x">4x</option>
-                </select>
-              </label>
+            </div>
+
+            {/* Amount */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 6, marginBottom: 10 }}>
+              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span className="label small">Amount</span>
+                <span className="small" style={{ minWidth: 64, textAlign: 'right' }}>{distAmount.toFixed(3)}</span>
+              </div>
+              <input
+                type="range" min={0} max={1} step={0.001}
+                value={distAmount} onChange={(e)=>setDistAmount(parseFloat(e.target.value))}
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            {/* Mix */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 6, marginBottom: 10 }}>
+              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span className="label small">Mix</span>
+                <span className="small" style={{ minWidth: 64, textAlign: 'right' }}>{Math.round(distWet*100)}%</span>
+              </div>
+              <input
+                type="range" min={0} max={1} step={0.001}
+                value={distWet} onChange={(e)=>setDistWet(parseFloat(e.target.value))}
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            {/* Oversample */}
+            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+              <span className="label small" style={{ minWidth: 80 }}>Oversample</span>
+              <select value={distOversample} onChange={(e)=>setDistOversample(e.target.value as any)}>
+                <option value="none">none</option>
+                <option value="2x">2x</option>
+                <option value="4x">4x</option>
+              </select>
             </div>
           </div>
 
           {/* Envelope */}
-          <div className="panel" style={{padding:10, marginBottom:10}}>
-            <div className="row" style={{gap:12, alignItems:'center', flexWrap:'wrap'}}>
-              <strong className="small" style={{minWidth:60}}>Envelope</strong>
-              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
-                <span className="label small" style={{width:60}}>Attack</span>
-                <input type="range" min={0} max={0.5} step={0.001} value={attack} onChange={(e)=>setAttack(parseFloat(e.target.value))}/>
-                <span className="small" style={{width:56, textAlign:'right'}}>{attack.toFixed(3)}s</span>
-              </label>
-              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
-                <span className="label small" style={{width:60}}>Decay</span>
-                <input type="range" min={0.01} max={1} step={0.001} value={decay} onChange={(e)=>setDecay(parseFloat(e.target.value))}/>
-                <span className="small" style={{width:56, textAlign:'right'}}>{decay.toFixed(3)}s</span>
-              </label>
-              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
-                <span className="label small" style={{width:60}}>Sustain</span>
-                <input type="range" min={0} max={1} step={0.01} value={sustain} onChange={(e)=>setSustain(parseFloat(e.target.value))}/>
-                <span className="small" style={{width:56, textAlign:'right'}}>{(sustain*100).toFixed(0)}%</span>
-              </label>
-              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
-                <span className="label small" style={{width:60}}>Release</span>
-                <input type="range" min={0.01} max={2} step={0.001} value={release} onChange={(e)=>setRelease(parseFloat(e.target.value))}/>
-                <span className="small" style={{width:56, textAlign:'right'}}>{release.toFixed(3)}s</span>
-              </label>
-            </div>
+          <div className="panel" style={{ padding: 10, marginBottom: 10 }}>
+            <strong className="small" style={{ display: 'block', marginBottom: 8 }}>Envelope</strong>
+
+            {[
+              { label:'Attack',  val: attack,  set:(v:number)=>setAttack(v),  min:0,     max:0.5, step:0.001, fmt:(v:number)=>`${v.toFixed(3)}s` },
+              { label:'Decay',   val: decay,   set:(v:number)=>setDecay(v),   min:0.01,  max:1,   step:0.001, fmt:(v:number)=>`${v.toFixed(3)}s` },
+              { label:'Sustain', val: sustain, set:(v:number)=>setSustain(v), min:0,     max:1,   step:0.01,  fmt:(v:number)=>`${(v*100).toFixed(0)}%` },
+              { label:'Release', val: release, set:(v:number)=>setRelease(v), min:0.01,  max:2,   step:0.001, fmt:(v:number)=>`${v.toFixed(3)}s` },
+            ].map(row => (
+              <div key={row.label} style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 6, marginBottom: 10 }}>
+                <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <span className="label small">{row.label}</span>
+                  <span className="small" style={{ minWidth: 64, textAlign: 'right' }}>{row.fmt(row.val)}</span>
+                </div>
+                <input
+                  type="range" min={row.min} max={row.max} step={row.step}
+                  value={row.val}
+                  onChange={(e)=>row.set(parseFloat(e.target.value))}
+                  style={{ width: '100%' }}
+                />
+              </div>
+            ))}
           </div>
 
           {/* Pitch / Glide */}
-          <div className="panel" style={{padding:10}}>
-            <div className="row" style={{gap:12, alignItems:'center', flexWrap:'wrap'}}>
-              <strong className="small" style={{minWidth:60}}>Pitch</strong>
-              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
-                <span className="label small" style={{width:60}}>Detune</span>
-                <input type="range" min={-1200} max={1200} step={1} value={detune} onChange={(e)=>setDetune(parseInt(e.target.value))}/>
-                <span className="small" style={{width:56, textAlign:'right'}}>{detune}¢</span>
-              </label>
-              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
-                <span className="label small" style={{width:60}}>Porta</span>
-                <input type="range" min={0} max={1} step={0.001} value={porta} onChange={(e)=>setPorta(parseFloat(e.target.value))}/>
-                <span className="small" style={{width:56, textAlign:'right'}}>{porta.toFixed(3)}s</span>
-              </label>
+          <div className="panel" style={{ padding: 10 }}>
+            <strong className="small" style={{ display: 'block', marginBottom: 8 }}>Pitch</strong>
+
+            {/* Detune */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 6, marginBottom: 10 }}>
+              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span className="label small">Detune</span>
+                <span className="small" style={{ minWidth: 64, textAlign: 'right' }}>{detune}¢</span>
+              </div>
+              <input
+                type="range" min={-1200} max={1200} step={1}
+                value={detune} onChange={(e)=>setDetune(parseInt(e.target.value))}
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            {/* Porta */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 6 }}>
+              <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span className="label small">Porta</span>
+                <span className="small" style={{ minWidth: 64, textAlign: 'right' }}>{porta.toFixed(3)}s</span>
+              </div>
+              <input
+                type="range" min={0} max={1} step={0.001}
+                value={porta} onChange={(e)=>setPorta(parseFloat(e.target.value))}
+                style={{ width: '100%' }}
+              />
             </div>
           </div>
-        </div>
+
       </CollapsiblePanel>
 
       {/* ---------------- SAMPLER DRAWER ---------------- */}
