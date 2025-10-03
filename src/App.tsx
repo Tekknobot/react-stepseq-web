@@ -15,6 +15,132 @@ type TrackId = typeof TRACKS[number]['id']
 const ROLL_NOTES = ['C3','B2','A#2','A2','G#2','G2','F#2','F2','E2','D#2','D2','C2'] as const
 type RollIndex = number | null
 
+type Oversample = 'none' | '2x' | '4x'
+type SynthPreset = {
+  name: string
+  params: {
+    wave: 'sine'|'triangle'|'square'|'sawtooth'
+    cutoff: number
+    resonance: number
+    attack: number
+    decay: number
+    sustain: number
+    release: number
+    detune: number
+    porta: number
+    distOn: boolean
+    distAmount: number
+    distWet: number
+    distOversample: Oversample
+    drive: number
+    makeup: number
+  }
+}
+
+const SYNTH_PRESETS: SynthPreset[] = [
+  {
+    name: 'House Bass',
+    params: {
+      wave: 'sawtooth',
+      cutoff: 1200,   // tight, punchy
+      resonance: 1.2,
+      attack: 0.003,
+      decay: 0.12,
+      sustain: 0.1,
+      release: 0.18,
+      detune: 0,
+      porta: 0.02,
+      distOn: true,
+      distAmount: 0.45,
+      distWet: 0.65,
+      distOversample: '2x',
+      drive: 2.2,
+      makeup: 0.9,
+    },
+  },
+  {
+    name: 'Techno Rumble',
+    params: {
+      wave: 'sine',
+      cutoff: 700,    // darker
+      resonance: 1.8,
+      attack: 0.002,
+      decay: 0.22,
+      sustain: 0.0,
+      release: 0.4,
+      detune: -5,
+      porta: 0.03,
+      distOn: true,
+      distAmount: 0.65,
+      distWet: 0.85,
+      distOversample: '4x',
+      drive: 3.2,
+      makeup: 0.8,
+    },
+  },
+  {
+    name: 'Hip-Hop Sub',
+    params: {
+      wave: 'sine',
+      cutoff: 500,    // mostly fundamental
+      resonance: 0.8,
+      attack: 0.004,
+      decay: 0.35,
+      sustain: 0.15,
+      release: 0.5,
+      detune: 0,
+      porta: 0.08,    // small glide
+      distOn: false,
+      distAmount: 0.2,
+      distWet: 0.0,
+      distOversample: '2x',
+      drive: 1.4,
+      makeup: 0.95,
+    },
+  },
+  {
+    name: 'UKG Reese',
+    params: {
+      wave: 'square',
+      cutoff: 1600,
+      resonance: 1.4,
+      attack: 0.003,
+      decay: 0.25,
+      sustain: 0.25,
+      release: 0.28,
+      detune: 12,     // chorusey detune
+      porta: 0.04,
+      distOn: true,
+      distAmount: 0.5,
+      distWet: 0.6,
+      distOversample: '2x',
+      drive: 2.8,
+      makeup: 0.85,
+    },
+  },
+  {
+    name: 'Acid Squelch',
+    params: {
+      wave: 'sawtooth',
+      cutoff: 900,
+      resonance: 6.0, // pronounced peak
+      attack: 0.002,
+      decay: 0.18,
+      sustain: 0.0,
+      release: 0.16,
+      detune: 0,
+      porta: 0.0,
+      distOn: true,
+      distAmount: 0.7,
+      distWet: 0.75,
+      distOversample: '4x',
+      drive: 3.5,
+      makeup: 0.8,
+    },
+  },
+]
+
+
 type PatternState = {
   drums: Record<TrackId, boolean[]>
   synthRoll: RollIndex[]         // length = STEPS
@@ -41,6 +167,46 @@ export default function App() {
   const [swing, setSwing] = useState(0)
   const [accentEvery, setAccentEvery] = useState(4)
   const [playerReady, setPlayerReady] = useState(false);
+
+  // --- Presets state & helpers ---
+  const [presetIndex, setPresetIndex] = useState(0)
+
+  function applyPreset(i: number) {
+    const p = SYNTH_PRESETS[(i + SYNTH_PRESETS.length) % SYNTH_PRESETS.length].params
+    // oscillator/filter/env/pitch
+    setWave(p.wave)
+    setCutoff(p.cutoff)
+    setResonance(p.resonance)
+    setAttack(p.attack)
+    setDecay(p.decay)
+    setSustain(p.sustain)
+    setRelease(p.release)
+    setDetune(p.detune)
+    setPorta(p.porta)
+    // drive/dist/output
+    setDistOn(p.distOn)
+    setDistAmount(p.distAmount)
+    setDistWet(p.distWet)
+    setDistOversample(p.distOversample)
+    setDrive(p.drive)
+    setMakeup(p.makeup)
+  }
+
+  function nextPreset() {
+    setPresetIndex((i) => {
+      const n = (i + 1) % SYNTH_PRESETS.length
+      applyPreset(n)
+      return n
+    })
+  }
+
+  function prevPreset() {
+    setPresetIndex((i) => {
+      const n = (i - 1 + SYNTH_PRESETS.length) % SYNTH_PRESETS.length
+      applyPreset(n)
+      return n
+    })
+  }
 
   // render 16 steps as 2 rows of 8
   const COLS = 8;
@@ -439,6 +605,71 @@ export default function App() {
     Tone.Transport.swingSubdivision = '8n'
   }, [bpm, swing])
 
+  // init instruments once
+  useEffect(() => {
+    if (synthsRef.current) return
+
+    // Master bus to balance levels
+    const bus = new Tone.Gain(0.9).toDestination()
+
+    const kick = new Tone.MembraneSynth({
+      volume: -4,
+      pitchDecay: 0.05, octaves: 8,
+      envelope: { attack: 0.001, decay: 0.4, sustain: 0.01, release: 1.2 },
+    }).connect(bus)
+
+    const snareFilter = new Tone.Filter(1800, 'bandpass').connect(bus)
+    const snare = new Tone.NoiseSynth({
+      volume: -6,
+      noise: { type: 'white' },
+      envelope: { attack: 0.001, decay: 0.22, sustain: 0 },
+    }).connect(snareFilter)
+
+    const hihat = new Tone.MetalSynth({
+      volume: -8,
+      envelope: { attack: 0.001, decay: 0.08, release: 0.01 },
+      frequency: 250,
+      harmonicity: 5.1,
+      modulationIndex: 32,
+      octaves: 1.5,
+    } as any).connect(bus)
+    ;(hihat as any).resonance = 4000 // optional
+
+    const perc = new Tone.Synth({
+      volume: -8,
+      oscillator: { type: 'triangle' },
+      envelope: { attack: 0.001, decay: 0.09, sustain: 0, release: 0.05 },
+    }).connect(bus)
+
+    // ---- Tonal synth chain: Synth -> Filter -> PreGain -> Distortion -> PostGain -> Bus ----
+    const filter = new Tone.Filter({ type: 'lowpass', frequency: cutoff, Q: resonance } as any)
+    const preGain  = new Tone.Gain(drive)                 // "Drive" into distortion
+    const distortion = new Tone.Distortion({
+      distortion: distAmount,
+      oversample: distOversample,
+      wet: distOn ? distWet : 0,
+    })
+    const postGain = new Tone.Gain(makeup)                // "Output" after distortion
+
+    const synth = new Tone.Synth({
+      oscillator: { type: wave },
+      envelope: { attack, decay, sustain, release },
+      detune,
+      portamento: porta,
+      volume: -4,
+    })
+      .connect(filter)
+      .connect(preGain)
+      .connect(distortion)
+      .connect(postGain)
+      .connect(bus)
+
+    synthsRef.current = {
+      kick, snare, hihat, perc,
+      synth, filter, preGain, distortion, postGain, bus
+    } as any
+  }, []) // eslint-disable-line
+
   // apply synth parameter changes whenever UI state changes
   useEffect(() => {
     const s = synthsRef.current
@@ -835,6 +1066,19 @@ export default function App() {
 
             <button className="button secondary xs" onClick={randomizeSynthParams}>Randomize Tone</button>
             <button className="button xs" onClick={resetSynthParams}>Reset</button>
+
+            {/* --- NEW: Presets --- */}
+            <div className="row" style={{gap:6, alignItems:'center', marginLeft:6}}>
+              <button
+                className="button xs"
+                title="Apply the current preset"
+                onClick={() => applyPreset(presetIndex)}
+              >
+                Preset: {SYNTH_PRESETS[presetIndex].name}
+              </button>
+              <button className="button secondary xs" onClick={prevPreset} title="Previous Preset">◀</button>
+              <button className="button secondary xs" onClick={nextPreset} title="Next Preset">▶</button>
+            </div>
           </div>
 
           {/* Filter */}
