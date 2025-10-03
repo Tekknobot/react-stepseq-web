@@ -1120,50 +1120,40 @@ export default function App() {
           className="mixer"
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(6, 56px)',
-            gap: 8,
+            gridTemplateColumns: 'repeat(6, 44px)', // was 56px
+            gap: 4,                                  // was 8
             alignItems: 'end',
-            justifyItems: 'start', // ← left-align grid children
-            paddingTop: 4,
-            paddingBottom: 4,
-            marginLeft: 0,         // ← no extra gutter
+            justifyItems: 'start',
+            paddingTop: 2,
+            paddingBottom: 2,
+            marginLeft: 0,
             marginRight: 0,
           }}
         >
-
           {[
             { key:'kick',   label:'Kick',   color:'#34d399' },
             { key:'snare',  label:'Snare',  color:'#fb7185' },
-            { key:'hihat',  label:'Hi-Hat', color:'#f59e0b' },
+            { key:'hihat',  label:'Hat', color:'#f59e0b' },
             { key:'perc',   label:'Perc',   color:'#60a5fa' },
             { key:'synth',  label:'Synth',  color:'#a78bfa' },
             { key:'sampler',label:'Sample', color:'#22d3ee' },
           ].map(ch => {
             const db = (mix as any)[ch.key] as number;
             return (
-              <div key={ch.key} style={{ textAlign:'center' }}>
-                <div className="label small" style={{ color:'var(--sub)', marginBottom:4 }}>{ch.label}</div>
+              <div key={ch.key} style={{ textAlign:'left', width: 44 /* match grid col */, margin: 0 }}>
+                <div className="label small" style={{ color:'var(--sub)', marginBottom:2, textAlign:'left' }}>
+                  {ch.label}
+                </div>
 
                 <div
                   style={{
                     position:'relative',
-                    height: 150, width: 28, margin: '0 auto',
-                    borderRadius: 8, padding: 4,
+                    height: 150, width: 22, margin: 0,       // no auto-centering; slimmer well
+                    borderRadius: 8, padding: 3,
                     background: 'var(--panelSub, #0f1518)',
                     display:'flex', alignItems:'center', justifyContent:'center'
                   }}
                 >
-                  {/* 0 dB marker (detent line) */}
-                  <div
-                    style={{
-                      position:'absolute', left: 4, right: 4,
-                      // Map 0 dB within [-60..+6] to Y in the well:
-                      top: `${(1 - (0 - (-60)) / (6 - (-60))) * 100}%`,
-                      height: 1, background: 'rgba(231,241,255,0.6)'
-                    }}
-                  />
-
-                  {/* Vertical slider (rotate for broad support) */}
                   <input
                     type="range"
                     min={-60}
@@ -1172,17 +1162,31 @@ export default function App() {
                     value={db}
                     onChange={(e)=>setMix(prev=>({ ...prev, [ch.key]: parseFloat(e.target.value) } as any))}
                     title={`${ch.label} level (dB)`}
+                    onTouchStart={(e)=>e.preventDefault()}         // block scroll start
+                    onTouchMove={(e)=>e.preventDefault()}          // block scroll while dragging
                     style={{
                       transform: 'rotate(-90deg)',
-                      width: 120,
-                      height: 22,
+                      width: 100,                                  // slightly shorter rail
+                      height: 18,                                  // thinner control
                       accentColor: ch.color as any,
+                      touchAction: 'none',                         // prevent page panning on drag
+                      WebkitUserSelect: 'none', userSelect: 'none',
+                      WebkitTapHighlightColor: 'transparent',
                     }}
                   />
                 </div>
-
-                <div className="small" style={{ marginTop:4, color:'var(--sub)' }}>
-                  {db.toFixed(1)} dB
+                <div
+                  className="small"
+                  style={{
+                    marginTop: 2,
+                    color: 'var(--sub)',
+                    fontVariantNumeric: 'tabular-nums',
+                    width: 44,            // align with column width
+                    textAlign: 'left',    // left-aligned value
+                    display: 'block',
+                  }}
+                >
+                  {db.toFixed(1)}
                 </div>
               </div>
             );
