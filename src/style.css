@@ -220,3 +220,7 @@ input[type="range"] { accent-color: var(--accent, #a78bfa); }
   color: #7dd3fc;                 /* cyan accent for the ◉ */
   text-shadow: 0 0 10px rgba(125,211,252,0.4);
 }
+
+:root {
+  --panelSynth: #0c1a1f; /* tweak to taste */
+}
