@@ -461,12 +461,6 @@ export default function App() {
           <select value={accentEvery} onChange={(e)=>setAccentEvery(parseInt(e.target.value))}>
             {[0,2,3,4,8].map(n => <option key={n} value={n}>{n===0?'Off':`${n} steps`}</option>)}
           </select>
-
-          {/* Collapse/Expand all */}
-          <div className="row" style={{ marginLeft: 12, gap: 6 }}>
-            <button className="button secondary xs" onClick={expandAll}>Expand All</button>
-            <button className="button secondary xs" onClick={collapseAll}>Collapse All</button>
-          </div>
         </div>
       </div>
 
