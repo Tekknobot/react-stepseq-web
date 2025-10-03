@@ -181,8 +181,9 @@ export default function App() {
   const [accentEvery, setAccentEvery] = useState(4)
   const [playerReady, setPlayerReady] = useState(false);
 
-  // Width of the piano-roll section: label column (28px) + 8 cells + 8 gaps
-  const SYNTH_SECTION_WIDTH = 'calc(28px + 8 * var(--cell, 44px) + 8 * var(--gap, 8px))';
+  // cap to sequencer width but allow 100% on narrow screens
+  const SYNTH_SECTION_WIDTH =
+    'min(100%, calc(28px + 8 * var(--cell, 44px) + 8 * var(--gap, 8px)))';
 
     // --- Mixer levels in dB (real console feel) ---
     const [mix, setMix] = useState({
@@ -863,9 +864,9 @@ export default function App() {
           <div
             style={{
               padding: '12px 0',
-              width: SYNTH_SECTION_WIDTH,
-              marginLeft: 4,   // <- left aligned, small margin
-              marginRight: 0,
+              width: '100%',
+              maxWidth: SYNTH_SECTION_WIDTH,
+              marginInline: 8,     // 8px left/right on mobile
             }}
           >
           <div style={{ display:'grid', gridTemplateColumns:`28px repeat(8, var(--cell, 44px))`, gap:'var(--gap, 8px)' }}>
@@ -896,12 +897,12 @@ export default function App() {
             className="subpanel"
             style={{
               marginTop: 8,
-              padding: '10px 10px 10px 8px',
+              padding: '10px',
               borderRadius: 8,
               background: 'var(--panelSub, #0f1518)',
-              width: SYNTH_SECTION_WIDTH,
-              marginLeft: 4,
-              marginRight: 0,
+              width: '100%',
+              maxWidth: SYNTH_SECTION_WIDTH,
+              marginInline: 8,     // match piano roll gutters
             }}
           >
           <div className="row" style={{gap:8, marginBottom:10, flexWrap:'wrap'}}>
