@@ -475,61 +475,62 @@ export default function App() {
       envelope: { attack: 0.001, decay: 0.09, sustain: 0, release: 0.05 },
     }).connect(bus)
 
-  // ---- Tonal synth chain: Synth -> PreGain -> Distortion -> Filter -> PostGain -> Bus ----
-  const filter = new Tone.Filter({ type: 'lowpass', frequency: cutoff, Q: resonance } as any);  
-  const preGain  = new Tone.Gain(drive);
-  const postGain = new Tone.Gain(makeup);
+    // ---- Tonal synth chain: Synth -> Filter -> PreGain -> Distortion -> PostGain -> Bus ----
+    const filter = new Tone.Filter({ type: 'lowpass', frequency: cutoff, Q: resonance } as any)
+    const preGain  = new Tone.Gain(drive)                 // "Drive" into distortion
+    const distortion = new Tone.Distortion({
+      distortion: distAmount,
+      oversample: distOversample,
+      wet: distOn ? distWet : 0,
+    })
+    const postGain = new Tone.Gain(makeup)                // "Output" after distortion
 
-  const distortion = new Tone.Distortion({
-    distortion: distAmount,
-    oversample: distOversample,
-    wet: distOn ? distWet : 0,
-  });
+    const synth = new Tone.Synth({
+      oscillator: { type: wave },
+      envelope: { attack, decay, sustain, release },
+      detune,
+      portamento: porta,
+      volume: -4,
+    })
+      .connect(filter)
+      .connect(preGain)
+      .connect(distortion)
+      .connect(postGain)
+      .connect(bus)
 
-  const synth = new Tone.Synth({
-    oscillator: { type: wave },
-    envelope: { attack, decay, sustain, release },
-    detune,
-    portamento: porta,
-    volume: -4,
-  })
-    .connect(preGain)
-    .connect(distortion)
-    .connect(filter)
-    .connect(postGain)
-    .connect(bus);
-
-  synthsRef.current = {
-    kick, snare, hihat, perc,
-    synth, preGain, distortion, filter, postGain, bus
-  } as any;
-
+    synthsRef.current = {
+      kick, snare, hihat, perc,
+      synth, filter, preGain, distortion, postGain, bus
+    } as any
   }, []) // eslint-disable-line
 
   // apply synth parameter changes whenever UI state changes
   useEffect(() => {
-    const s = synthsRef.current;
-    if (!s) return;
+    const s = synthsRef.current
+    if (!s) return
 
     // --- Oscillator & ADSR ---
-    s.synth.oscillator.type = wave;
-    (s.synth as any).set({ envelope: { attack, decay, sustain, release } });
-    (s.synth as any).set({ detune, portamento: porta });
+    s.synth.oscillator.type = wave
+    ;(s.synth as any).set({ envelope: { attack, decay, sustain, release } })
+    ;(s.synth as any).set({ detune, portamento: porta })
 
     // --- Filter (smooth updates) ---
-    s.filter.frequency.rampTo(cutoff, 0.01);
-    s.filter.Q.rampTo(resonance, 0.01);
+    s.filter.frequency.rampTo(cutoff, 0.01)
+    s.filter.Q.rampTo(resonance, 0.01)
 
     // --- Distortion (if present in the chain) ---
     if ((s as any).distortion) {
-      // amount & oversampling can be set directly
       (s as any).distortion.set({
         distortion: distAmount,
         oversample: distOversample,
-      });
+      })
       // wet is a Signal — ramp for click-free transitions
-      (s as any).distortion.wet.rampTo(distOn ? distWet : 0, 0.01);
+      ;(s as any).distortion.wet.rampTo(distOn ? distWet : 0, 0.01)
     }
+
+    // --- Drive / Output (pre/post gain) ---
+    if ((s as any).preGain)  (s as any).preGain.gain.rampTo(drive, 0.01)
+    if ((s as any).postGain) (s as any).postGain.gain.rampTo(makeup, 0.01)
   }, [
     // synth tone
     wave, attack, decay, sustain, release, detune, porta,
@@ -537,7 +538,9 @@ export default function App() {
     cutoff, resonance,
     // distortion
     distOn, distAmount, distWet, distOversample,
-  ]);
+    // drive / output
+    drive, makeup,
+  ])
 
   // create/update sequence when patterns or accent change
   useEffect(() => {
