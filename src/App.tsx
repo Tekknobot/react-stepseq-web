@@ -254,42 +254,300 @@ export default function App() {
   function euclid(k: number, n: number): boolean[] { k = Math.max(0, Math.min(n, Math.round(k))); if (k === 0) return Array(n).fill(false); if (k === n) return Array(n).fill(true); const pattern: boolean[] = []; let bucket = 0; for (let i = 0; i < n; i++) { bucket += k; if (bucket >= n) { bucket -= n; pattern.push(true); } else pattern.push(false); } const rot = Math.floor(Math.random() * n); return pattern.map((_, i) => pattern[(i + rot) % n]); }
   function pickNextIndex(allowed: number[], prevIdx: number | null, jumpProb = 0.15): number { if (allowed.length === 0) return 0; if (prevIdx == null) { const center = Math.floor(allowed.length / 2); const weights = allowed.map((_, i) => { const d = Math.abs(i - center); return Math.exp(-0.5 * d * d); }); const sum = weights.reduce((a, b) => a + b, 0); let r = Math.random() * sum; for (let i = 0; i < allowed.length; i++) { r -= weights[i]; if (r <= 0) return allowed[i]; } return allowed[center]; } const iPrev = allowed.indexOf(prevIdx); if (iPrev < 0 || Math.random() < jumpProb) { const hop = (Math.random() < 0.5 ? -1 : 1) * (3 + Math.floor(Math.random() * 3)); const target = allowed.reduce((best, idx) => Math.abs(idx - prevIdx) < Math.abs(best - prevIdx) ? idx : best, allowed[0]); const alt = prevIdx + hop; const clamped = allowed.reduce((best, idx) => Math.abs(idx - alt) < Math.abs(best - alt) ? idx : best, target); return clamped; } else { const candidates: number[] = []; for (let off of [-2,-1,1,2]) { const pos = iPrev + off; if (pos >= 0 && pos < allowed.length) candidates.push(allowed[pos]); } if (candidates.length === 0) return allowed[iPrev]; return candidates[Math.floor(Math.random() * candidates.length)]; } }
 
-  function randomizeSynth(arg?: number | { scale?: 'major'|'minor'|'pentatonic'|'blues'; density?: number; hits?: number; root?: 'C'|'C#'|'Db'|'D'|'D#'|'Eb'|'E'|'F'|'F#'|'Gb'|'G'|'G#'|'Ab'|'A'|'A#'|'Bb'|'B'; jumpProb?: number; }){
-    const opts = (typeof arg === 'number') ? (arg > 1 ? { hits: Math.round(arg) } : { density: arg }) : (arg || {});
+  // ---- MELODIC HELPERS (drop-in) ----
+
+  // clamp helper
+  const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+
+  // pick N distinct items from array
+  function pickN<T>(arr: T[], n: number): T[] {
+    const a = [...arr];
+    const out: T[] = [];
+    for (let i = 0; i < n && a.length; i++) {
+      out.push(a.splice(Math.floor(Math.random() * a.length), 1)[0]);
+    }
+    return out;
+  }
+
+  // ensure no long runs of identical notes
+  function deRepeat(line: (number|null)[]) {
+    for (let i=1;i<line.length;i++) {
+      if (line[i] !== null && line[i] === line[i-1] && Math.random()<0.55) {
+        // nudge up/down if possible
+        const up = (line[i]! - 1 >= 0) ? line[i]! - 1 : line[i]!;
+        const dn = line[i]! + 1 < ROLL_NOTES.length ? line[i]! + 1 : line[i]!;
+        line[i] = Math.random()<0.5 ? up : dn;
+      }
+    }
+  }
+
+  // cadence to root in the last bar
+  function cadenceToRoot(line: (number|null)[], allowedRows: number[], rootRows: number[]) {
+    if (!rootRows.length || !allowedRows.length) return;
+    const lastIdxs = [line.length-2, line.length-1].filter(i=>i>=0);
+    for (const i of lastIdxs) {
+      if (line[i] !== null && Math.random() < 0.5) {
+        // choose nearest root row
+        const cur = line[i]!;
+        let best = rootRows[0];
+        for (const rr of rootRows) if (Math.abs(rr - cur) < Math.abs(best - cur)) best = rr;
+        line[i] = best;
+      }
+    }
+  }
+
+  // rhythmic masks (16 steps)
+  function maskFromStyle(style: string, hits: number, steps = 16): boolean[] {
+    const on = (idxs: number[]) => Array.from({length:steps}, (_,i)=>idxs.includes(i));
+    const rotate = (arr: boolean[], r: number) =>
+      arr.map((_, i) => arr[(i - r + steps) % steps]);
+
+    switch (style) {
+      case 'offbeat-stab': {
+        // 8th offbeats (steps 2,6,10,14), with a few fills
+        const base = on([2,6,10,14]);
+        const fills = [1,5,9,13,3,7,11,15].filter(()=>Math.random()<0.25);
+        fills.forEach(i=> base[i]=true);
+        return base;
+      }
+      case 'syncopated-bass': {
+        const base = on([0,3,7,10,12,15]); // k-housey syncopation
+        const rot = Math.floor(Math.random()*4)*1; // subtle rotation
+        return rotate(base, rot);
+      }
+      case 'euclid-shuffle': {
+        // Euclid with light rotation
+        const k = clamp(hits, 4, 12);
+        const out: boolean[] = [];
+        let bucket = 0;
+        for (let i=0;i<steps;i++){ bucket += k; if (bucket>=steps){ bucket-=steps; out.push(true);} else out.push(false); }
+        return rotate(out, Math.floor(Math.random()*steps));
+      }
+      case 'sparse-motif': {
+        // few strong notes to make space
+        const idxs = pickN([...Array(steps).keys()], clamp(Math.round(hits*0.6), 3, 8)).sort((a,b)=>a-b);
+        return on(idxs);
+      }
+      case 'dense-run': {
+        // more driving
+        const idxs = pickN([...Array(steps).keys()], clamp(Math.round(hits*1.1), 8, 14)).sort((a,b)=>a-b);
+        return on(idxs);
+      }
+      default: { // 'arp' variants rely on note engine but still need mask
+        const k = clamp(hits, 6, 12);
+        const out: boolean[] = [];
+        let bucket = 0;
+        for (let i=0;i<steps;i++){ bucket += k; if (bucket>=steps){ bucket-=steps; out.push(true);} else out.push(false); }
+        return out;
+      }
+    }
+  }
+
+  // Better musical randomizer with pattern styles
+  // Usage examples:
+  //   randomizeSynth(0.6)                       // density
+  //   randomizeSynth(12)                        // exactly 12 hits
+  //   randomizeSynth({ style:'arp-up', root:'A', scale:'minor' })
+  //   randomizeSynth({ style:'syncopated-bass', density:0.35, root:'F#' })
+  function randomizeSynth(
+    arg?: number | {
+      style?: 'arp-up'|'arp-down'|'arp-bounce'|'syncopated-bass'|'offbeat-stab'|'euclid-shuffle'|'sparse-motif'|'dense-run'|'motif-variations';
+      scale?: 'major'|'minor'|'pentatonic'|'blues';
+      density?: number;   // 0..1
+      hits?: number;      // 1..16
+      root?: 'C'|'C#'|'Db'|'D'|'D#'|'Eb'|'E'|'F'|'F#'|'Gb'|'G'|'G#'|'Ab'|'A'|'A#'|'Bb'|'B';
+      jumpProb?: number;
+    }
+  ){
+    // ---------- parse args ----------
+    const opts = (typeof arg === 'number')
+      ? (arg > 1 ? { hits: Math.round(arg) } : { density: arg })
+      : (arg || {});
+
+    const allStyles: NonNullable<typeof opts.style>[] = [
+      'arp-up','arp-down','arp-bounce',
+      'syncopated-bass','offbeat-stab','euclid-shuffle',
+      'sparse-motif','dense-run','motif-variations'
+    ];
+
+    const style = opts.style ?? allStyles[Math.floor(Math.random()*allStyles.length)];
     const scaleName = opts.scale ?? 'minor';
     const rootName  = (opts.root || 'C').replace('♯','#').replace('♭','b') as any;
-    const jumpProb  = Math.max(0, Math.min(1, opts.jumpProb ?? 0.15));
-    const density   = Math.max(0, Math.min(1, opts.density ?? 0.42));
-    const hits      = Math.max(0, Math.min(STEPS, opts.hits != null ? Math.round(opts.hits) : Math.round(density * STEPS)));
+    const jumpProb  = Math.max(0, Math.min(1, opts.jumpProb ?? 0.12));
 
-    const SCALES: Record<string, number[]> = { major:[0,2,4,5,7,9,11], minor:[0,2,3,5,7,8,10], pentatonic:[0,3,5,7,10], blues:[0,3,5,6,7,10] };
-    const rootPcMap: Record<string, number> = { C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11 };
+    const density   = Math.max(0, Math.min(1, opts.density ?? 0.42));
+    const hits      = Math.max(0, Math.min(STEPS,
+                          opts.hits != null ? Math.round(opts.hits)
+                          : Math.round(density * STEPS)));
+
+    // ---------- scale / allowed rows ----------
+    const SCALES: Record<string, number[]> = {
+      major:[0,2,4,5,7,9,11], minor:[0,2,3,5,7,8,10],
+      pentatonic:[0,3,5,7,10], blues:[0,3,5,6,7,10]
+    };
+    const rootPcMap: Record<string, number> = {
+      C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11
+    };
     const rootPc = rootPcMap[rootName] ?? 0;
     const pcs = SCALES[scaleName] || SCALES.minor;
     const allowedPc = new Set(pcs.map(v => (v + rootPc) % 12));
 
     const rowPc: number[] = [];
     const allowedRows: number[] = [];
-    function noteToMidi(n: string){ const m=n.match(/^([A-Ga-g])([#b]?)(-?\d+)$/); if(!m) return {pc:0}; const L=m[1].toUpperCase(), acc=m[2]; const base: Record<string,number>={C:0,D:2,E:4,F:5,G:7,A:9,B:11}; let s=base[L]??0; if(acc==='#') s++; if(acc==='b') s--; return { pc: ((s%12)+12)%12 }; }
-    for (let r=0;r<ROLL_NOTES.length;r++){ const { pc } = noteToMidi(ROLL_NOTES[r]); rowPc[r]=pc; if (allowedPc.has(pc)) allowedRows.push(r); }
-
-    const mask:boolean[] = (()=>{ const n=STEPS,k=Math.max(0,Math.min(n,hits)); const out:boolean[]=[]; let bucket=0; for(let i=0;i<n;i++){ bucket+=k; if(bucket>=n){bucket-=n; out.push(true);} else out.push(false); } const rot = Math.floor(Math.random()*n); return out.map((_,i)=>out[(i+rot)%n]); })();
-
-    const line:(number|null)[] = Array(STEPS).fill(null);
-    let prev:number|null = null;
-
-    for(let i=0;i<STEPS;i++){
-      if(!mask[i]) continue;
-      const idx = pickNextIndex(allowedRows, prev, jumpProb);
-      if(prev!==null && idx===prev && Math.random()<0.6){ const pos=allowedRows.indexOf(idx); const alt=pos+(Math.random()<0.5?-1:1); line[i]=(alt>=0 && alt<allowedRows.length)? allowedRows[alt] : idx; } else { line[i]=idx; }
-      prev=line[i]!;
-    }
+    (function buildRows(){
+      function notePc(n: string){ const m=n.match(/^([A-Ga-g])([#b]?)(-?\d+)$/);
+        if(!m) return 0; const L=m[1].toUpperCase(), acc=m[2];
+        const base: Record<string,number>={C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+        let s=base[L]??0; if(acc==='#') s++; if(acc==='b') s--;
+        return ((s%12)+12)%12;
+      }
+      for (let r=0;r<ROLL_NOTES.length;r++){
+        const pc = notePc(ROLL_NOTES[r]); rowPc[r]=pc; if (allowedPc.has(pc)) allowedRows.push(r);
+      }
+    })();
 
     const rootRows = ROLL_NOTES.map((_,r)=>r).filter(r=>rowPc[r]===rootPc);
-    if(rootRows.length){ for(let i=STEPS-2;i<STEPS;i++){ if(mask[i] && Math.random()<0.4){ const cur = line[i] ?? allowedRows[Math.floor(allowedRows.length/2)]; let best=rootRows[0]; for(const rr of rootRows) if(Math.abs(rr-(cur??rr))<Math.abs(best-(cur??rr))) best=rr; line[i]=best; } } }
+    if (!allowedRows.length) { setState(prev=>({...prev, synthRoll:Array(STEPS).fill(null)})); return; }
+
+    // ---------- rhythm mask ----------
+    const mask = maskFromStyle(style, hits, STEPS);
+
+    // ---------- note engines per style ----------
+    const line:(number|null)[] = Array(STEPS).fill(null);
+
+    function placeArp(direction: 'up'|'down'|'bounce') {
+      // pick 3–5 distinct allowed rows around the middle for a compact arp range
+      const mid = allowedRows[Math.floor(allowedRows.length/2)];
+      const pool = allowedRows
+        .filter(r => Math.abs(r - mid) <= 4); // keep within ~quint range on your fixed roll
+      const chord = pickN(pool.length ? pool : allowedRows, Math.floor(3 + Math.random()*2)).sort((a,b)=>a-b);
+
+      const seq = (()=>{
+        if (direction==='up') return chord;
+        if (direction==='down') return [...chord].reverse();
+        // bounce (up & down without repeating endpoints)
+        const up = chord;
+        const down = [...chord].reverse().slice(1, -1);
+        return up.concat(down.length?down:[]);
+      })();
+
+      let ptr = Math.floor(Math.random()*seq.length);
+      for (let i=0;i<STEPS;i++){
+        if (!mask[i]) continue;
+        line[i] = seq[ptr % seq.length];
+        ptr++;
+        // occasional octave-ish jump within allowed range for spice
+        if (Math.random()<0.12) {
+          const target = line[i]! + (Math.random()<0.5?-2:2);
+          line[i] = clamp(target, 0, ROLL_NOTES.length-1);
+        }
+      }
+    }
+
+    function placeMotifVariations() {
+      // pick a short 4-step motif inside allowed rows near center
+      const centerIdx = allowedRows[Math.floor(allowedRows.length/2)];
+      const motifBase = [
+        centerIdx,
+        clamp(centerIdx + (Math.random()<0.5?-1:1), 0, ROLL_NOTES.length-1),
+        centerIdx,
+        clamp(centerIdx + (Math.random()<0.5?-2:2), 0, ROLL_NOTES.length-1),
+      ];
+      // lay motif each bar with small variations
+      for (let bar=0; bar<2; bar++){
+        for (let s=0; s<8; s++){
+          const i = bar*8 + s;
+          if (!mask[i]) continue;
+          let n = motifBase[s%4];
+          // variation knobs
+          if (Math.random()<0.25) n = clamp(n + (Math.random()<0.5?-1:1), 0, ROLL_NOTES.length-1);
+          if (Math.random()<0.10) n = allowedRows[Math.floor(Math.random()*allowedRows.length)];
+          line[i] = n;
+        }
+      }
+    }
+
+    function placeBassSyncopated() {
+      let prev: number | null = null;
+
+      for (let i = 0; i < STEPS; i++) {
+        if (!mask[i]) continue;
+
+        let next: number;
+
+        if (prev == null) {
+          // start near the middle of the allowed range
+          next = allowedRows[Math.floor(allowedRows.length / 2)];
+        } else if (Math.random() < 0.15) {
+          // occasional leap anywhere in allowed
+          next = allowedRows[Math.floor(Math.random() * allowedRows.length)];
+        } else {
+          // small stepwise movement around the previous note
+          const p = prev as number;
+          const candidates = [p - 2, p - 1, p + 1, p + 2].filter(
+            (r) => r >= 0 && r < ROLL_NOTES.length
+          );
+          next =
+            candidates.length
+              ? candidates[Math.floor(Math.random() * candidates.length)]
+              : p;
+        }
+
+        line[i] = next;
+        prev = next;
+      }
+    }
+
+    function placeEuclidShuffle() {
+      // walk through allowed with random tiny movements
+      let cur = allowedRows[Math.floor(Math.random()*allowedRows.length)];
+      for (let i=0;i<STEPS;i++){
+        if (!mask[i]) continue;
+        if (Math.random() < jumpProb) {
+          cur = allowedRows[Math.floor(Math.random()*allowedRows.length)];
+        } else {
+          const stepMove = (Math.random()<0.5?-1:1)*(Math.random()<0.5?1:2);
+          cur = clamp(cur + stepMove, 0, ROLL_NOTES.length-1);
+        }
+        line[i] = cur;
+      }
+    }
+
+    function placeSparseMotif() {
+      // place a few strong notes: root/5th/3rd rows if present, else nearest
+      const strongPc = new Set([(rootPc)%12, (rootPc+7)%12, (rootPc+4)%12]); // R,5,3
+      const strongRows = allowedRows.filter(r=>strongPc.has(rowPc[r]));
+      for (let i=0;i<STEPS;i++){
+        if (!mask[i]) continue;
+        const pick = (strongRows.length? strongRows : allowedRows)[Math.floor(Math.random()* (strongRows.length? strongRows.length : allowedRows.length))];
+        line[i] = pick;
+      }
+    }
+
+    // ---------- route by style ----------
+    switch (style) {
+      case 'arp-up':       placeArp('up'); break;
+      case 'arp-down':     placeArp('down'); break;
+      case 'arp-bounce':   placeArp('bounce'); break;
+      case 'syncopated-bass': placeBassSyncopated(); break;
+      case 'euclid-shuffle':  placeEuclidShuffle(); break;
+      case 'sparse-motif':    placeSparseMotif(); break;
+      case 'dense-run':       placeEuclidShuffle(); break; // same engine, denser mask
+      case 'offbeat-stab':    placeSparseMotif(); break;
+      case 'motif-variations': placeMotifVariations(); break;
+      default: placeBassSyncopated();
+    }
+
+    // ---------- polish ----------
+    deRepeat(line);
+    cadenceToRoot(line, allowedRows, rootRows);
+
+    // small chance to leave last step empty for breath
+    if (Math.random()<0.25) line[line.length-1] = null;
 
     setState(prev => ({ ...prev, synthRoll: line }));
   }
+
 
   async function onSampleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
