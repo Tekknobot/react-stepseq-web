@@ -181,15 +181,16 @@ export default function App() {
   const [accentEvery, setAccentEvery] = useState(4)
   const [playerReady, setPlayerReady] = useState(false);
 
-    // --- Mixer levels (linear 0..1) ---
-  const [mix, setMix] = useState({
-    kick: 0.9,
-    snare: 0.9,
-    hihat: 0.9,
-    perc: 0.9,
-    synth: 0.9,
-    sampler: 0.9,
-  });
+    // --- Mixer levels in dB (real console feel) ---
+    const [mix, setMix] = useState({
+      kick:   0,
+      snare:  0,
+      hihat:  0,
+      perc:   0,
+      synth:  0,
+      sampler:0,
+    });
+
 
   // --- Drawers: global expand/collapse convenience ---
   const [allOpenVersion, setAllOpenVersion] = useState(0); // bump to re-open/close all via events
@@ -734,17 +735,20 @@ export default function App() {
     playerRef.current = p; let cancelled = false; p.load(url).then(() => { if (!cancelled) setPlayerReady(true); }).catch(() => {}); return () => { cancelled = true; };
   }, []);
 
+  // dB ↔ gain helpers
+  const dbToGain = (db: number) => Math.pow(10, db / 20);
+
   // Apply mixer levels to per-channel gains
   useEffect(() => {
     const s = synthsRef.current as any;
     if (!s || !s.gains) return;
-    const t = 0.01; // short ramp for click-free moves
-    s.gains.kick.gain.rampTo(mix.kick, t);
-    s.gains.snare.gain.rampTo(mix.snare, t);
-    s.gains.hihat.gain.rampTo(mix.hihat, t);
-    s.gains.perc.gain.rampTo(mix.perc, t);
-    s.gains.synth.gain.rampTo(mix.synth, t);
-    s.gains.sampler.gain.rampTo(mix.sampler, t);
+    const t = 0.01; // click-free ramps
+    s.gains.kick.gain.rampTo(dbToGain(mix.kick), t);
+    s.gains.snare.gain.rampTo(dbToGain(mix.snare), t);
+    s.gains.hihat.gain.rampTo(dbToGain(mix.hihat), t);
+    s.gains.perc.gain.rampTo(dbToGain(mix.perc), t);
+    s.gains.synth.gain.rampTo(dbToGain(mix.synth), t);
+    s.gains.sampler.gain.rampTo(dbToGain(mix.sampler), t);
   }, [mix]);
 
   function toggleDrum(track: TrackId, i: number) { setState(prev => { const next = { ...prev, drums: { ...prev.drums, [track]: [...prev.drums[track]] } }; next.drums[track][i] = !next.drums[track][i]; return next; }) }
@@ -1039,7 +1043,7 @@ export default function App() {
         </div>
       </CollapsiblePanel>
 
-      {/* ---------------- MIXER DRAWER ---------------- */}
+      {/* ---------------- MIXER DRAWER (dB-native) ---------------- */}
       <CollapsiblePanel
         id={`mixer-${allOpenVersion}`}
         title={<>Mixer</>}
@@ -1050,11 +1054,11 @@ export default function App() {
           className="mixer"
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(6,50px)',
-            gap: 14,
+            gridTemplateColumns: 'repeat(6, 56px)',
+            gap: 8,
             alignItems: 'end',
-            paddingTop: 6,
-            paddingBottom: 6,
+            paddingTop: 4,
+            paddingBottom: 4,
           }}
         >
           {[
@@ -1065,36 +1069,51 @@ export default function App() {
             { key:'synth',  label:'Synth',  color:'#a78bfa' },
             { key:'sampler',label:'Sample', color:'#22d3ee' },
           ].map(ch => {
-            const v = (mix as any)[ch.key] as number;
-            const db = v <= 0 ? '-∞' : (20*Math.log10(v)).toFixed(1);
+            const db = (mix as any)[ch.key] as number;
             return (
               <div key={ch.key} style={{ textAlign:'center' }}>
-                <div className="label small" style={{ color:'var(--sub)', marginBottom:6 }}>{ch.label}</div>
+                <div className="label small" style={{ color:'var(--sub)', marginBottom:4 }}>{ch.label}</div>
+
                 <div
                   style={{
-                    height: 160, width: 36, margin: '0 auto',
-                    borderRadius: 8, padding: 6, background: 'var(--panelSub, #0f1518)',
+                    position:'relative',
+                    height: 150, width: 28, margin: '0 auto',
+                    borderRadius: 8, padding: 4,
+                    background: 'var(--panelSub, #0f1518)',
                     display:'flex', alignItems:'center', justifyContent:'center'
                   }}
                 >
-                  {/* Vertical slider (rotate trick for broad browser support) */}
+                  {/* 0 dB marker (detent line) */}
+                  <div
+                    style={{
+                      position:'absolute', left: 4, right: 4,
+                      // Map 0 dB within [-60..+6] to Y in the well:
+                      top: `${(1 - (0 - (-60)) / (6 - (-60))) * 100}%`,
+                      height: 1, background: 'rgba(231,241,255,0.6)'
+                    }}
+                  />
+
+                  {/* Vertical slider (rotate for broad support) */}
                   <input
                     type="range"
-                    min={0}
-                    max={1}
-                    step={0.001}
-                    value={v}
+                    min={-60}
+                    max={+6}
+                    step={0.1}
+                    value={db}
                     onChange={(e)=>setMix(prev=>({ ...prev, [ch.key]: parseFloat(e.target.value) } as any))}
-                    title={`${ch.label} level`}
+                    title={`${ch.label} level (dB)`}
                     style={{
                       transform: 'rotate(-90deg)',
-                      width: 140,  // becomes height after rotation
-                      height: 28,
+                      width: 120,
+                      height: 22,
                       accentColor: ch.color as any,
                     }}
                   />
                 </div>
-                <div className="small" style={{ marginTop:6, color:'var(--sub)' }}>{db} dB</div>
+
+                <div className="small" style={{ marginTop:4, color:'var(--sub)' }}>
+                  {db.toFixed(1)} dB
+                </div>
               </div>
             );
           })}
