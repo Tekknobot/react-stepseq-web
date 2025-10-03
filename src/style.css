@@ -123,3 +123,82 @@ select { background: #1f2937; color: white; border-radius: 8px; padding: 6px 8px
   font-size: 11px;       /* slightly smaller label */
   line-height: 1.1;
 }
+
+/* show native vertical in engines that support it; hide rotated fallback */
+.vslider-webkit { display: block; }
+.vslider-rotate { display: none; }
+
+@supports not (-webkit-appearance: slider-vertical) {
+  /* engines that don't support native vertical: hide native, show rotated */
+  .vslider-webkit { display: none; }
+  .vslider-rotate { display: flex; }
+}
+
+/* Optional: use your accent */
+input[type="range"] { accent-color: var(--accent, #a78bfa); }
+
+/* Thin vertical slider track + compact thumb */
+.vslider {
+  --rail: 220px;        /* visual height (you can override inline) */
+  --track: 4px;         /* track thickness */
+  --thumb: 14px;        /* thumb diameter */
+  --thumb-ring: 2px;    /* thumb border */
+  --thumb-shadow: 0 0 0 2px rgba(255,255,255,0.08);
+  appearance: none;
+  margin: 0;
+  width: var(--rail);   /* becomes height when rotated */
+  height: var(--thumb);
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+
+/* WebKit/Blink */
+.vslider::-webkit-slider-runnable-track {
+  height: var(--track);
+  background: rgba(255,255,255,0.15);
+  border-radius: 999px;
+}
+.vslider::-webkit-slider-thumb {
+  appearance: none;
+  width: var(--thumb);
+  height: var(--thumb);
+  border-radius: 50%;
+  border: var(--thumb-ring) solid #cbd5e1; /* light ring */
+  background: #fff;
+  margin-top: calc((var(--track) - var(--thumb)) / 2); /* center on track */
+  box-shadow: var(--thumb-shadow);
+}
+
+/* Firefox */
+.vslider::-moz-range-track {
+  height: var(--track);
+  background: rgba(255,255,255,0.15);
+  border-radius: 999px;
+}
+.vslider::-moz-range-thumb {
+  width: var(--thumb);
+  height: var(--thumb);
+  border-radius: 50%;
+  border: var(--thumb-ring) solid #cbd5e1;
+  background: #fff;
+  box-shadow: var(--thumb-shadow);
+}
+
+/* Focus state (optional) */
+.vslider:focus-visible::-webkit-slider-thumb,
+.vslider:focus-visible::-moz-range-thumb {
+  outline: none;
+  border-color: #a78bfa;           /* your purple */
+  box-shadow: 0 0 0 3px rgba(167,139,250,0.35);
+}
+
+/* Native vertical where supported */
+@supports (-webkit-appearance: slider-vertical) {
+  .vslider {
+    transform: none;
+    width: var(--thumb);
+    height: var(--rail);
+    -webkit-appearance: slider-vertical;
+    appearance: slider-vertical;
+  }
+}

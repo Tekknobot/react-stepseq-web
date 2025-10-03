@@ -71,6 +71,54 @@ export default function App() {
     setState(prev => ({ ...prev, samplerRoll: Array(STEPS).fill(null) }));
   }
 
+  // ---- Synth parameter presets/randomizer ----
+  function resetSynthParams() {
+    setWave('sawtooth');
+    setCutoff(1200);
+    setResonance(1.2);
+    setAttack(0.005);
+    setDecay(0.12);
+    setSustain(0.1);
+    setRelease(0.2);
+    setDetune(0);
+    setPorta(0.0);
+  }
+
+  function randomizeSynthParams() {
+    const waves: typeof wave[] = ['sine','triangle','square','sawtooth'];
+    setWave(waves[Math.floor(Math.random()*waves.length)]);
+
+    // --- Distortion & drive first so we can bias filter if needed ---
+    setDistOn(true);
+    setDistAmount(parseFloat((0.2 + Math.random()*0.7).toFixed(3))); // 0.2–0.9
+    setDistWet(parseFloat((0.5 + Math.random()*0.5).toFixed(3)));    // 0.5–1.0
+    setDistOversample(['none','2x','4x'][Math.floor(Math.random()*3)] as any);
+    setDrive(parseFloat((1.4 + Math.random()*1.6).toFixed(2)));      // 1.4–3.0
+    setMakeup(parseFloat((0.7 + Math.random()*0.4).toFixed(2)));     // 0.7–1.1
+
+    // --- Filter / ADSR / pitch ---
+    // If we’re running hot wet, lift cutoff so harmonics aren’t being killed
+    const wantBrighter = Math.random() < 0.7; // bias brighter when dist is on
+    const minCut = wantBrighter ? 3000 : 1200;
+    setCutoff(Math.round(minCut + Math.random() * (8000 - minCut))); // 3k–8k or 1.2k–8k
+    setResonance(parseFloat((0.6 + Math.random()*6).toFixed(2)));
+
+    setAttack(parseFloat((0.001 + Math.random()*0.12).toFixed(3)));
+    setDecay(parseFloat((0.04 + Math.random()*0.5).toFixed(3)));
+    setSustain(parseFloat((Math.random()*0.8).toFixed(2)));
+    setRelease(parseFloat((0.06 + Math.random()*0.9).toFixed(3)));
+    setDetune(Math.round((Math.random()*2-1) * 40));
+    setPorta(parseFloat((Math.random()*0.25).toFixed(3)));
+  }
+
+  const [distOn, setDistOn] = useState(true);
+  const [distAmount, setDistAmount] = useState(0.3);          // 0..1
+  const [distWet, setDistWet] = useState(0.4);                // 0..1
+  const [distOversample, setDistOversample] = useState<'none'|'2x'|'4x'>('2x');
+
+  const [drive, setDrive] = useState(1.8);   // pre-gain into distortion
+  const [makeup, setMakeup] = useState(0.85); // post-gain after filter
+
   // --- Sampler state ---
   const audioRef = useRef<HTMLAudioElement | null>(null);   // preview / marker capture
   const sampleUrlRef = useRef<string | null>(null);         // object URL
@@ -354,7 +402,7 @@ export default function App() {
   const [release, setRelease] = useState(0.2)
   const [detune, setDetune] = useState(0)         // cents (-1200..+1200)
   const [porta, setPorta] = useState(0.0)         // seconds
-
+ 
   // load/save state (keeps compatibility with the old drum-only save)
   const [state, setState] = useState<PatternState>(() => {
     const saved = localStorage.getItem('patterns_v2');
@@ -427,17 +475,36 @@ export default function App() {
       envelope: { attack: 0.001, decay: 0.09, sustain: 0, release: 0.05 },
     }).connect(bus)
 
-    // ---- Tonal synth chain: Synth -> Filter -> Bus ----
-    const filter = new Tone.Filter({ type: 'lowpass', frequency: cutoff, Q: resonance } as any)
-    const synth = new Tone.Synth({
-      oscillator: { type: wave },
-      envelope: { attack, decay, sustain, release },
-      detune,
-      portamento: porta,
-      volume: -4,
-    }).connect(filter).connect(bus)
+  // ---- Tonal synth chain: Synth -> PreGain -> Distortion -> Filter -> PostGain -> Bus ----
+  const preGain  = new Tone.Gain(drive);
+  const postGain = new Tone.Gain(makeup);
 
-    synthsRef.current = { kick, snare, hihat, perc, synth, filter, bus } as any
+  const distortion = new Tone.Distortion({
+    distortion: distAmount,
+    oversample: distOversample,
+    wet: distOn ? distWet : 0,
+  });
+
+  const filter = new Tone.Filter({ type: 'lowpass', frequency: cutoff, Q: resonance } as any);
+
+  const synth = new Tone.Synth({
+    oscillator: { type: wave },
+    envelope: { attack, decay, sustain, release },
+    detune,
+    portamento: porta,
+    volume: -4,
+  })
+    .connect(preGain)
+    .connect(distortion)
+    .connect(filter)
+    .connect(postGain)
+    .connect(bus);
+
+  synthsRef.current = {
+    kick, snare, hihat, perc,
+    synth, preGain, distortion, filter, postGain, bus
+  } as any;
+
   }, []) // eslint-disable-line
 
   // apply synth parameter changes whenever UI state changes
@@ -445,16 +512,33 @@ export default function App() {
     const s = synthsRef.current;
     if (!s) return;
 
-    // Oscillator & ADSR
+    // --- Oscillator & ADSR ---
     s.synth.oscillator.type = wave;
     (s.synth as any).set({ envelope: { attack, decay, sustain, release } });
     (s.synth as any).set({ detune, portamento: porta });
 
-    // Filter — use Signals for live updates
-    // rampTo avoids zipper noise and actually touches the Signal
+    // --- Filter (smooth updates) ---
     s.filter.frequency.rampTo(cutoff, 0.01);
     s.filter.Q.rampTo(resonance, 0.01);
-  }, [wave, attack, decay, sustain, release, detune, porta, cutoff, resonance]);
+
+    // --- Distortion (if present in the chain) ---
+    if ((s as any).distortion) {
+      // amount & oversampling can be set directly
+      (s as any).distortion.set({
+        distortion: distAmount,
+        oversample: distOversample,
+      });
+      // wet is a Signal — ramp for click-free transitions
+      (s as any).distortion.wet.rampTo(distOn ? distWet : 0, 0.01);
+    }
+  }, [
+    // synth tone
+    wave, attack, decay, sustain, release, detune, porta,
+    // filter
+    cutoff, resonance,
+    // distortion
+    distOn, distAmount, distWet, distOversample,
+  ]);
 
   // create/update sequence when patterns or accent change
   useEffect(() => {
@@ -797,6 +881,138 @@ export default function App() {
             ))}
           </div>
         </div>
+
+        {/* --- Synth Controls Sub-Panel --- */}
+        <div className="subpanel" style={{marginTop:8, padding:'10px 12px', borderRadius:8, background:'var(--panelSub, #0f1518)'}}>
+          {/* top row: quick actions */}
+          <div className="row" style={{gap:8, marginBottom:10, flexWrap:'wrap'}}>
+            <label className="small" style={{display:'inline-flex', alignItems:'center', gap:6}}>
+              <span className="label small">Wave</span>
+              <select value={wave} onChange={(e)=>setWave(e.target.value as any)}>
+                <option value="sine">Sine</option>
+                <option value="triangle">Triangle</option>
+                <option value="square">Square</option>
+                <option value="sawtooth">Saw</option>
+              </select>
+            </label>
+
+            <button className="button secondary xs" onClick={randomizeSynthParams}>Randomize Tone</button>
+            <button className="button xs" onClick={resetSynthParams}>Reset</button>
+          </div>
+
+          {/* Filter */}
+          <div className="panel" style={{padding:10, marginBottom:10}}>
+            <div className="row" style={{gap:12, alignItems:'center', flexWrap:'wrap'}}>
+              <strong className="small" style={{minWidth:60}}>Filter</strong>
+
+              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
+                <span className="label small" style={{width:70}}>Cutoff</span>
+                <input type="range" min={120} max={8000} step={1}
+                      value={cutoff} onChange={(e)=>setCutoff(parseInt(e.target.value))}/>
+                <span className="small" style={{width:56, textAlign:'right'}}>{cutoff} Hz</span>
+              </label>
+
+              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
+                <span className="label small" style={{width:70}}>Resonance</span>
+                <input type="range" min={0.2} max={10} step={0.01}
+                      value={resonance} onChange={(e)=>setResonance(parseFloat(e.target.value))}/>
+                <span className="small" style={{width:56, textAlign:'right'}}>{resonance.toFixed(2)} Q</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Distortion */}
+          <div className="panel" style={{padding:10, marginBottom:10}}>
+            <div className="row" style={{gap:12, alignItems:'center', flexWrap:'wrap'}}>
+              <strong className="small" style={{minWidth:60}}>Distortion</strong>
+
+              <label className="small" style={{display:'inline-flex',alignItems:'center',gap:6}}>
+                <input type="checkbox" checked={distOn} onChange={(e)=>setDistOn(e.target.checked)} />
+                Enabled
+              </label>
+
+              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
+                <span className="label small" style={{width:70}}>Amount</span>
+                <input type="range" min={0} max={1} step={0.001}
+                      value={distAmount} onChange={(e)=>setDistAmount(parseFloat(e.target.value))}/>
+                <span className="small" style={{width:56, textAlign:'right'}}>{distAmount.toFixed(3)}</span>
+              </label>
+
+              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
+                <span className="label small" style={{width:70}}>Mix</span>
+                <input type="range" min={0} max={1} step={0.001}
+                      value={distWet} onChange={(e)=>setDistWet(parseFloat(e.target.value))}/>
+                <span className="small" style={{width:56, textAlign:'right'}}>{Math.round(distWet*100)}%</span>
+              </label>
+
+              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
+                <span className="label small" style={{width:70}}>Oversample</span>
+                <select value={distOversample} onChange={(e)=>setDistOversample(e.target.value as any)}>
+                  <option value="none">none</option>
+                  <option value="2x">2x</option>
+                  <option value="4x">4x</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          {/* Envelope */}
+          <div className="panel" style={{padding:10, marginBottom:10}}>
+            <div className="row" style={{gap:12, alignItems:'center', flexWrap:'wrap'}}>
+              <strong className="small" style={{minWidth:60}}>Envelope</strong>
+
+              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
+                <span className="label small" style={{width:60}}>Attack</span>
+                <input type="range" min={0} max={0.5} step={0.001}
+                      value={attack} onChange={(e)=>setAttack(parseFloat(e.target.value))}/>
+                <span className="small" style={{width:56, textAlign:'right'}}>{attack.toFixed(3)}s</span>
+              </label>
+
+              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
+                <span className="label small" style={{width:60}}>Decay</span>
+                <input type="range" min={0.01} max={1} step={0.001}
+                      value={decay} onChange={(e)=>setDecay(parseFloat(e.target.value))}/>
+                <span className="small" style={{width:56, textAlign:'right'}}>{decay.toFixed(3)}s</span>
+              </label>
+
+              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
+                <span className="label small" style={{width:60}}>Sustain</span>
+                <input type="range" min={0} max={1} step={0.01}
+                      value={sustain} onChange={(e)=>setSustain(parseFloat(e.target.value))}/>
+                <span className="small" style={{width:56, textAlign:'right'}}>{(sustain*100).toFixed(0)}%</span>
+              </label>
+
+              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
+                <span className="label small" style={{width:60}}>Release</span>
+                <input type="range" min={0.01} max={2} step={0.001}
+                      value={release} onChange={(e)=>setRelease(parseFloat(e.target.value))}/>
+                <span className="small" style={{width:56, textAlign:'right'}}>{release.toFixed(3)}s</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Pitch / Glide */}
+          <div className="panel" style={{padding:10}}>
+            <div className="row" style={{gap:12, alignItems:'center', flexWrap:'wrap'}}>
+              <strong className="small" style={{minWidth:60}}>Pitch</strong>
+
+              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
+                <span className="label small" style={{width:60}}>Detune</span>
+                <input type="range" min={-1200} max={1200} step={1}
+                      value={detune} onChange={(e)=>setDetune(parseInt(e.target.value))}/>
+                <span className="small" style={{width:56, textAlign:'right'}}>{detune}¢</span>
+              </label>
+
+              <label className="small" style={{display:'inline-flex', alignItems:'center', gap:8}}>
+                <span className="label small" style={{width:60}}>Porta</span>
+                <input type="range" min={0} max={1} step={0.001}
+                      value={porta} onChange={(e)=>setPorta(parseFloat(e.target.value))}/>
+                <span className="small" style={{width:56, textAlign:'right'}}>{porta.toFixed(3)}s</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       {/* --- Sampler Panel --- */}
