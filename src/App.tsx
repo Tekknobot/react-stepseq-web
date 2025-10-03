@@ -181,6 +181,16 @@ export default function App() {
   const [accentEvery, setAccentEvery] = useState(4)
   const [playerReady, setPlayerReady] = useState(false);
 
+    // --- Mixer levels (linear 0..1) ---
+  const [mix, setMix] = useState({
+    kick: 0.9,
+    snare: 0.9,
+    hihat: 0.9,
+    perc: 0.9,
+    synth: 0.9,
+    sampler: 0.9,
+  });
+
   // --- Drawers: global expand/collapse convenience ---
   const [allOpenVersion, setAllOpenVersion] = useState(0); // bump to re-open/close all via events
   function expandAll() {
@@ -605,24 +615,66 @@ export default function App() {
   // init instruments once
   useEffect(() => {
     if (synthsRef.current) return
-    const bus = new Tone.Gain(0.9).toDestination()
+    const bus = new Tone.Gain(0.9).toDestination();
 
-    const kick = new Tone.MembraneSynth({ volume: -4, pitchDecay: 0.05, octaves: 8, envelope: { attack: 0.001, decay: 0.4, sustain: 0.01, release: 1.2 }, }).connect(bus)
-    const snareFilter = new Tone.Filter(1800, 'bandpass').connect(bus)
-    const snare = new Tone.NoiseSynth({ volume: -6, noise: { type: 'white' }, envelope: { attack: 0.001, decay: 0.22, sustain: 0 }, }).connect(snareFilter)
-    const hihat = new Tone.MetalSynth({ volume: -8, envelope: { attack: 0.001, decay: 0.08, release: 0.01 }, frequency: 250, harmonicity: 5.1, modulationIndex: 32, octaves: 1.5, } as any).connect(bus)
-    ;(hihat as any).resonance = 4000
-    const perc = new Tone.Synth({ volume: -8, oscillator: { type: 'triangle' }, envelope: { attack: 0.001, decay: 0.09, sustain: 0, release: 0.05 }, }).connect(bus)
+    // Per-channel mixer gains
+    const gains = {
+      kick:   new Tone.Gain(mix.kick).connect(bus),
+      snare:  new Tone.Gain(mix.snare).connect(bus),
+      hihat:  new Tone.Gain(mix.hihat).connect(bus),
+      perc:   new Tone.Gain(mix.perc).connect(bus),
+      synth:  new Tone.Gain(mix.synth).connect(bus),
+      sampler:new Tone.Gain(mix.sampler).connect(bus),
+    };
 
-    const filter = new Tone.Filter({ type: 'lowpass', frequency: cutoff, Q: resonance } as any)
-    const preGain  = new Tone.Gain(drive)
-    const distortion = new Tone.Distortion({ distortion: distAmount, oversample: distOversample, wet: distOn ? distWet : 0, })
-    const postGain = new Tone.Gain(makeup)
+    const kick = new Tone.MembraneSynth({
+      volume: -4, pitchDecay: 0.05, octaves: 8,
+      envelope: { attack: 0.001, decay: 0.4, sustain: 0.01, release: 1.2 },
+    }).connect(gains.kick);
 
-    const synth = new Tone.Synth({ oscillator: { type: wave }, envelope: { attack, decay, sustain, release }, detune, portamento: porta, volume: -4, })
-      .connect(filter).connect(preGain).connect(distortion).connect(postGain).connect(bus)
+    const snareFilter = new Tone.Filter(1800, 'bandpass').connect(gains.snare);
+    const snare = new Tone.NoiseSynth({
+      volume: -6, noise: { type: 'white' },
+      envelope: { attack: 0.001, decay: 0.22, sustain: 0 },
+    }).connect(snareFilter);
 
-    synthsRef.current = { kick, snare, hihat, perc, synth, filter, preGain, distortion, postGain, bus } as any
+    const hihat = new Tone.MetalSynth({
+      volume: -8,
+      envelope: { attack: 0.001, decay: 0.08, release: 0.01 },
+      frequency: 250, harmonicity: 5.1, modulationIndex: 32, octaves: 1.5,
+    } as any).connect(gains.hihat);
+    ;(hihat as any).resonance = 4000;
+
+    const perc = new Tone.Synth({
+      volume: -8, oscillator: { type: 'triangle' },
+      envelope: { attack: 0.001, decay: 0.09, sustain: 0, release: 0.05 },
+    }).connect(gains.perc);
+
+    // ---- Tonal synth chain: Synth -> Filter -> PreGain -> Distortion -> PostGain -> MixerGain -> Bus ----
+    const filter = new Tone.Filter({ type: 'lowpass', frequency: cutoff, Q: resonance } as any);
+    const preGain  = new Tone.Gain(drive);
+    const distortion = new Tone.Distortion({
+      distortion: distAmount, oversample: distOversample, wet: distOn ? distWet : 0,
+    });
+    const postGain = new Tone.Gain(makeup);
+
+    const synth = new Tone.Synth({
+      oscillator: { type: wave },
+      envelope: { attack, decay, sustain, release },
+      detune, portamento: porta, volume: -4,
+    })
+      .connect(filter)
+      .connect(preGain)
+      .connect(distortion)
+      .connect(postGain)
+      .connect(gains.synth);
+
+    synthsRef.current = {
+      kick, snare, hihat, perc,
+      synth, filter, preGain, distortion, postGain,
+      bus, gains
+    } as any;
+
   }, [])
 
   // apply synth parameter changes whenever UI state changes
@@ -678,9 +730,22 @@ export default function App() {
     const url = sampleUrlRef.current; if (!url) return;
     if (playerRef.current) { playerRef.current.dispose(); playerRef.current = null; }
     setPlayerReady(false);
-    const p = new Tone.Player({ volume: -4, fadeIn: 0.002, fadeOut: 0.008, autostart: false, loop: false, }).connect((synthsRef.current as any)?.bus ?? Tone.getDestination());
+    const p = new Tone.Player({ volume: -4, fadeIn: 0.002, fadeOut: 0.008, autostart: false, loop: false, }).connect((synthsRef.current as any)?.gains?.sampler ?? (synthsRef.current as any)?.bus ?? Tone.getDestination());
     playerRef.current = p; let cancelled = false; p.load(url).then(() => { if (!cancelled) setPlayerReady(true); }).catch(() => {}); return () => { cancelled = true; };
   }, []);
+
+  // Apply mixer levels to per-channel gains
+  useEffect(() => {
+    const s = synthsRef.current as any;
+    if (!s || !s.gains) return;
+    const t = 0.01; // short ramp for click-free moves
+    s.gains.kick.gain.rampTo(mix.kick, t);
+    s.gains.snare.gain.rampTo(mix.snare, t);
+    s.gains.hihat.gain.rampTo(mix.hihat, t);
+    s.gains.perc.gain.rampTo(mix.perc, t);
+    s.gains.synth.gain.rampTo(mix.synth, t);
+    s.gains.sampler.gain.rampTo(mix.sampler, t);
+  }, [mix]);
 
   function toggleDrum(track: TrackId, i: number) { setState(prev => { const next = { ...prev, drums: { ...prev.drums, [track]: [...prev.drums[track]] } }; next.drums[track][i] = !next.drums[track][i]; return next; }) }
   function clearDrum(track: TrackId) { setState(prev => ({ ...prev, drums: { ...prev.drums, [track]: Array(STEPS).fill(false) } })) }
@@ -971,6 +1036,68 @@ export default function App() {
               </React.Fragment>
             ))}
           </div>
+        </div>
+      </CollapsiblePanel>
+
+      {/* ---------------- MIXER DRAWER ---------------- */}
+      <CollapsiblePanel
+        id={`mixer-${allOpenVersion}`}
+        title={<>Mixer</>}
+        accent={'#94a3b8'}
+        right={<span className="small" style={{color:'var(--sub)'}}>Levels</span>}
+      >
+        <div
+          className="mixer"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(6,50px)',
+            gap: 14,
+            alignItems: 'end',
+            paddingTop: 6,
+            paddingBottom: 6,
+          }}
+        >
+          {[
+            { key:'kick',   label:'Kick',   color:'#34d399' },
+            { key:'snare',  label:'Snare',  color:'#fb7185' },
+            { key:'hihat',  label:'Hi-Hat', color:'#f59e0b' },
+            { key:'perc',   label:'Perc',   color:'#60a5fa' },
+            { key:'synth',  label:'Synth',  color:'#a78bfa' },
+            { key:'sampler',label:'Sample', color:'#22d3ee' },
+          ].map(ch => {
+            const v = (mix as any)[ch.key] as number;
+            const db = v <= 0 ? '-∞' : (20*Math.log10(v)).toFixed(1);
+            return (
+              <div key={ch.key} style={{ textAlign:'center' }}>
+                <div className="label small" style={{ color:'var(--sub)', marginBottom:6 }}>{ch.label}</div>
+                <div
+                  style={{
+                    height: 160, width: 36, margin: '0 auto',
+                    borderRadius: 8, padding: 6, background: 'var(--panelSub, #0f1518)',
+                    display:'flex', alignItems:'center', justifyContent:'center'
+                  }}
+                >
+                  {/* Vertical slider (rotate trick for broad browser support) */}
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.001}
+                    value={v}
+                    onChange={(e)=>setMix(prev=>({ ...prev, [ch.key]: parseFloat(e.target.value) } as any))}
+                    title={`${ch.label} level`}
+                    style={{
+                      transform: 'rotate(-90deg)',
+                      width: 140,  // becomes height after rotation
+                      height: 28,
+                      accentColor: ch.color as any,
+                    }}
+                  />
+                </div>
+                <div className="small" style={{ marginTop:6, color:'var(--sub)' }}>{db} dB</div>
+              </div>
+            );
+          })}
         </div>
       </CollapsiblePanel>
 
