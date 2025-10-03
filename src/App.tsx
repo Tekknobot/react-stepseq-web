@@ -1123,10 +1123,14 @@ export default function App() {
             gridTemplateColumns: 'repeat(6, 56px)',
             gap: 8,
             alignItems: 'end',
+            justifyItems: 'start', // ← left-align grid children
             paddingTop: 4,
             paddingBottom: 4,
+            marginLeft: 0,         // ← no extra gutter
+            marginRight: 0,
           }}
         >
+
           {[
             { key:'kick',   label:'Kick',   color:'#34d399' },
             { key:'snare',  label:'Snare',  color:'#fb7185' },
