@@ -866,7 +866,7 @@ export default function App() {
               padding: '12px 0',
               width: '100%',
               maxWidth: SYNTH_SECTION_WIDTH,
-              marginInline: 4,     // 8px left/right on mobile
+              marginInline: 0,     // 8px left/right on mobile
             }}
           >
           <div style={{ display:'grid', gridTemplateColumns:`28px repeat(8, var(--cell, 44px))`, gap:'var(--gap, 8px)' }}>
@@ -902,7 +902,7 @@ export default function App() {
               background: 'var(--panelSub, #0f1518)',
               width: '100%',
               maxWidth: SYNTH_SECTION_WIDTH,
-              marginInline: 8,     // match piano roll gutters
+              marginInline: 0,     // match piano roll gutters
             }}
           >
           <div className="row" style={{gap:8, marginBottom:10, flexWrap:'wrap'}}>
