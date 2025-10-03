@@ -22,7 +22,7 @@ h1 { margin: 0 0 16px; font-size: 24px; }
 .button.secondary { background: #374151; }
 .panel { background: var(--panel); border: 1px solid #1f1f24; border-radius: 16px; padding: 12px; }
 .grid { display: grid; grid-template-columns: repeat(16, 44px); gap: 8px; }
-.step { height: 40px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: var(--muted); color: #fff; font-size: 10px; border: 1px solid #333; cursor: pointer; transition: transform .05s ease; }
+.step { height: 40px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: var(--muted); color: #fff; font-size: 10px; border: 1px solid #333; cursor: pointer; transition: transform .05s ease; }
 .step.on { background: var(--accent); color: #081018; border-color: transparent; }
 .step.quarter { box-shadow: inset 0 0 0 1px #4b5563; }
 .step.playing { outline: 2px solid white; outline-offset: 2px; }
@@ -223,12 +223,4 @@ input[type="range"] { accent-color: var(--accent, #a78bfa); }
 
 :root {
   --panelSynth: #0c1a1f; /* tweak to taste */
-}
-
-:root { --cell: 44px; --gap: 8px; }
-
-@media (max-width: 420px) {
-  :root { --cell: 36px; --gap: 6px; }
-  .panel { padding-left: 8px; padding-right: 8px; }
-  .app   { padding-left: 8px; padding-right: 8px; }
 }

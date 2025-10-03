@@ -84,7 +84,7 @@ function CollapsiblePanel({
           transition: 'height 180ms ease',
         }}
       >
-        <div ref={innerRef} style={{ padding: '10px 12px' }}>
+        <div ref={innerRef} style={{ padding: '10px 8px 10px 6px' }}>
           {children}
         </div>
       </div>
@@ -784,11 +784,11 @@ export default function App() {
           <input type="range" min={60} max={180} value={bpm} onChange={(e)=>setBpm(parseInt(e.target.value))}/>
           <span className="small">{bpm} BPM</span>
 
-          <span className="label small" style={{marginLeft:12}}>Swing</span>
+          <span className="label small" style={{marginLeft:6}}>Swing</span>
           <input type="range" min={0} max={1} step={0.01} value={swing} onChange={(e)=>setSwing(parseFloat(e.target.value))}/>
           <span className="small">{Math.round(swing*100)}%</span>
 
-          <span className="label small" style={{marginLeft:12}}>Accent every</span>
+          <span className="label small" style={{marginLeft:6}}>Accent every</span>
           <select value={accentEvery} onChange={(e)=>setAccentEvery(parseInt(e.target.value))}>
             {[0,2,3,4,8].map(n => <option key={n} value={n}>{n===0?'Off':`${n} steps`}</option>)}
           </select>
@@ -853,7 +853,7 @@ export default function App() {
         <div className="row" style={{gap:8, margin:'6px 0 10px'}}>
           <button className="button secondary xs" onClick={()=>randomizeSynth(0.75)}>Randomize</button>
           <button className="button xs" onClick={()=>setState(prev => ({ ...prev, synthRoll: Array(STEPS).fill(null)}))}>Clear</button>
-          <label className="small" style={{display:'inline-flex',alignItems:'center',gap:6, marginLeft:8}}>
+          <label className="small" style={{display:'inline-flex',alignItems:'center',gap:6, marginLeft:4}}>
             <input type="checkbox" checked={followRoll} onChange={(e)=>setFollowRoll(e.target.checked)} /> Follow
           </label>
           <button className="button secondary xs" onClick={prevPianoPage} disabled={followRoll}>◀ Prev 8</button>
@@ -866,7 +866,7 @@ export default function App() {
               padding: '12px 0',
               width: '100%',
               maxWidth: SYNTH_SECTION_WIDTH,
-              marginInline: 8,     // 8px left/right on mobile
+              marginInline: 4,     // 8px left/right on mobile
             }}
           >
           <div style={{ display:'grid', gridTemplateColumns:`28px repeat(8, var(--cell, 44px))`, gap:'var(--gap, 8px)' }}>
@@ -917,7 +917,7 @@ export default function App() {
             </label>
             <button className="button secondary xs" onClick={randomizeSynthParams}>Randomize Tone</button>
             <button className="button xs" onClick={resetSynthParams}>Reset</button>
-            <div className="row" style={{gap:6, alignItems:'center', marginLeft:6}}>
+            <div className="row" style={{gap:6, alignItems:'center', marginLeft:3}}>
               <button className="button xs" title="Apply the current preset" onClick={()=>applyPreset(presetIndex)}>Preset: {SYNTH_PRESETS[presetIndex].name}</button>
               <button className="button secondary xs" onClick={prevPreset} title="Previous Preset">◀</button>
               <button className="button secondary xs" onClick={nextPreset} title="Next Preset">▶</button>
@@ -1073,7 +1073,7 @@ export default function App() {
           <button className="button xs" onClick={addMarkerHere} disabled={!sampleUrlRef.current || markers.length>=MAX_MARKERS}>Add Marker @ Playhead</button>
           <button className="button xs" onClick={clearMarkers} disabled={!markers.length}>Clear Markers</button>
           <button className="button xs" onClick={clearSamplerPattern} disabled={!samplerRoll.some(v => v !== null)}>Clear Pattern</button>
-          <label className="small" style={{display:'inline-flex',alignItems:'center',gap:6, marginLeft:8}}>
+          <label className="small" style={{display:'inline-flex',alignItems:'center',gap:6, marginLeft:4}}>
             <input type="checkbox" checked={followRoll} onChange={(e)=>setFollowRoll(e.target.checked)} /> Follow
           </label>
           <button className="button secondary xs" onClick={prevPianoPage} disabled={followRoll}>◀ Prev 8</button>
