@@ -476,6 +476,7 @@ export default function App() {
     }).connect(bus)
 
   // ---- Tonal synth chain: Synth -> PreGain -> Distortion -> Filter -> PostGain -> Bus ----
+  const filter = new Tone.Filter({ type: 'lowpass', frequency: cutoff, Q: resonance } as any);  
   const preGain  = new Tone.Gain(drive);
   const postGain = new Tone.Gain(makeup);
 
@@ -484,8 +485,6 @@ export default function App() {
     oversample: distOversample,
     wet: distOn ? distWet : 0,
   });
-
-  const filter = new Tone.Filter({ type: 'lowpass', frequency: cutoff, Q: resonance } as any);
 
   const synth = new Tone.Synth({
     oscillator: { type: wave },
