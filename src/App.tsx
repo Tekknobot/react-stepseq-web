@@ -860,7 +860,14 @@ export default function App() {
         </div>
 
         {/* paged grid */}
-        <div style={{ padding:'12px 0', width: SYNTH_SECTION_WIDTH, margin: '0 auto' }}>
+          <div
+            style={{
+              padding: '12px 0',
+              width: SYNTH_SECTION_WIDTH,
+              marginLeft: 4,   // <- left aligned, small margin
+              marginRight: 0,
+            }}
+          >
           <div style={{ display:'grid', gridTemplateColumns:`28px repeat(8, var(--cell, 44px))`, gap:'var(--gap, 8px)' }}>
             <div />
             {Array.from({length:8}).map((_,i)=>(<div key={'colLabel'+i} className="label small" style={{textAlign:'center'}}>{pianoPage*8 + i + 1}</div>))}
@@ -889,14 +896,14 @@ export default function App() {
             className="subpanel"
             style={{
               marginTop: 8,
-              padding: '10px 12px',
+              padding: '10px 10px 10px 8px',
               borderRadius: 8,
               background: 'var(--panelSub, #0f1518)',
-              width: SYNTH_SECTION_WIDTH,       // match piano roll width
-              marginLeft: 'auto',               // center
-              marginRight: 'auto'
+              width: SYNTH_SECTION_WIDTH,
+              marginLeft: 4,
+              marginRight: 0,
             }}
-          ></div>
+          >
           <div className="row" style={{gap:8, marginBottom:10, flexWrap:'wrap'}}>
             <label className="small" style={{display:'inline-flex', alignItems:'center', gap:6}}>
               <span className="label small">Wave</span>
@@ -915,9 +922,8 @@ export default function App() {
               <button className="button secondary xs" onClick={nextPreset} title="Next Preset">▶</button>
             </div>
           </div>
-
           {/* Filter */}
-          <div className="panel" style={{ padding: 10, marginBottom: 10 }}>
+          <div className="panel" style={{ padding:10, marginBottom:10, background:'var(--panelSynth, #0c1a1f)', border:'1px solid rgba(148,163,184,0.12)' }}>
             <strong className="small" style={{ display: 'block', marginBottom: 8 }}>Filter</strong>
 
             {/* Cutoff */}
@@ -948,7 +954,7 @@ export default function App() {
           </div>
 
           {/* Distortion */}
-          <div className="panel" style={{ padding: 10, marginBottom: 10 }}>
+          <div className="panel" style={{ padding:10, marginBottom:10, background:'var(--panelSynth, #0c1a1f)', border:'1px solid rgba(148,163,184,0.12)' }}>
             <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <strong className="small">Distortion</strong>
               <label className="small" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -995,7 +1001,7 @@ export default function App() {
           </div>
 
           {/* Envelope */}
-          <div className="panel" style={{ padding: 10, marginBottom: 10 }}>
+          <div className="panel" style={{ padding:10, marginBottom:10, background:'var(--panelSynth, #0c1a1f)', border:'1px solid rgba(148,163,184,0.12)' }}>
             <strong className="small" style={{ display: 'block', marginBottom: 8 }}>Envelope</strong>
 
             {[
@@ -1020,7 +1026,7 @@ export default function App() {
           </div>
 
           {/* Pitch / Glide */}
-          <div className="panel" style={{ padding: 10 }}>
+          <div className="panel" style={{ padding:10, background:'var(--panelSynth, #0c1a1f)', border:'1px solid rgba(148,163,184,0.12)' }}>
             <strong className="small" style={{ display: 'block', marginBottom: 8 }}>Pitch</strong>
 
             {/* Detune */}
@@ -1049,7 +1055,7 @@ export default function App() {
               />
             </div>
           </div>
-
+        </div>
       </CollapsiblePanel>
 
       {/* ---------------- SAMPLER DRAWER ---------------- */}
