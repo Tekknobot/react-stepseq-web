@@ -224,3 +224,11 @@ input[type="range"] { accent-color: var(--accent, #a78bfa); }
 :root {
   --panelSynth: #0c1a1f; /* tweak to taste */
 }
+
+:root { --cell: 44px; --gap: 8px; }
+
+@media (max-width: 420px) {
+  :root { --cell: 36px; --gap: 6px; }
+  .panel { padding-left: 8px; padding-right: 8px; }
+  .app   { padding-left: 8px; padding-right: 8px; }
+}
